@@ -15,6 +15,7 @@ limitations under the License.
 */
 #include "oneflow/core/framework/framework.h"
 #include "oneflow/user/kernels/math_unary_elementwise_func.h"
+#include "oneflow/core/kernel/cuda_graph_support.h"
 
 namespace oneflow {
 
@@ -33,7 +34,7 @@ __global__ void MathUnaryElementwiseBackwardGpu(const int n, const T* x, const T
 }  // namespace
 
 template<template<typename> class UnaryFunctor, typename T>
-class MathUnaryElementwiseGpuKernel final : public user_op::OpKernel {
+class MathUnaryElementwiseGpuKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   MathUnaryElementwiseGpuKernel() = default;
   ~MathUnaryElementwiseGpuKernel() = default;

@@ -15,6 +15,7 @@ limitations under the License.
 */
 #include "oneflow/core/framework/framework.h"
 #include "oneflow/core/kernel/batch_gather_kernel_util.h"
+#include "oneflow/core/kernel/cuda_graph_support.h"
 
 namespace oneflow {
 
@@ -32,7 +33,7 @@ Shape GetFlatShape(const ShapeView& shape, const int64_t axis) {
 }  // namespace
 
 template<DeviceType device_type, typename T, typename K>
-class UnsortedBatchSegmentSumKernel final : public user_op::OpKernel {
+class UnsortedBatchSegmentSumKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   UnsortedBatchSegmentSumKernel() = default;
   ~UnsortedBatchSegmentSumKernel() = default;

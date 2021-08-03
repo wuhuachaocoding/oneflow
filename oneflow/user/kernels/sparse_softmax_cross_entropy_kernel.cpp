@@ -18,6 +18,7 @@ limitations under the License.
 #include "oneflow/user/kernels/sparse_cross_entropy_kernel_util.h"
 #include "oneflow/user/kernels/softmax_kernel_util.h"
 #include "oneflow/core/job/parallel_distribution_util.h"
+#include "oneflow/core/kernel/cuda_graph_support.h"
 
 namespace oneflow {
 namespace user_op {
@@ -41,7 +42,7 @@ class SparseSoftmaxCrossEntropyOpKernelState final : public user_op::OpKernelSta
 }  // namespace
 
 template<DeviceType device_type, typename T, typename K>
-class SparseSoftmaxCrossEntropyKernel final : public user_op::OpKernel {
+class SparseSoftmaxCrossEntropyKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   SparseSoftmaxCrossEntropyKernel() = default;
   ~SparseSoftmaxCrossEntropyKernel() = default;
@@ -116,7 +117,8 @@ OF_PP_SEQ_PRODUCT_FOR_EACH_TUPLE(REGISTER_SPARSE_SOFTMAX_CROSS_ENTROPY_KERNEL,
 #endif
 
 template<DeviceType device_type, typename T, typename K>
-class SparseSoftmaxCrossEntropyGradKernel final : public user_op::OpKernel {
+class SparseSoftmaxCrossEntropyGradKernel final : public user_op::OpKernel,
+                                                  public CudaGraphSupport {
  public:
   SparseSoftmaxCrossEntropyGradKernel() = default;
   ~SparseSoftmaxCrossEntropyGradKernel() = default;
