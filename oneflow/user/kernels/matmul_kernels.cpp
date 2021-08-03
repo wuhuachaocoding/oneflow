@@ -143,7 +143,7 @@ REGISTER_USER_KERNEL("matmul")
 #endif
 
 template<DeviceType device_type, typename T>
-class BatchMatmulFloatingKernel final : public user_op::OpKernel {
+class BatchMatmulFloatingKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   BatchMatmulFloatingKernel() = default;
   ~BatchMatmulFloatingKernel() = default;
