@@ -113,7 +113,7 @@ void MaskAndScaleAdd<half>(DeviceCtx* ctx, const int64_t n, float scale, const h
 }
 
 template<typename T>
-class DropoutKernelGPU final : public user_op::OpKernel {
+class DropoutKernelGPU final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   DropoutKernelGPU() = default;
   ~DropoutKernelGPU() = default;

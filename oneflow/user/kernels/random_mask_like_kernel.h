@@ -18,6 +18,7 @@ limitations under the License.
 
 #include "oneflow/user/kernels/random_mask_generator.h"
 #include "oneflow/core/framework/framework.h"
+#include "oneflow/core/kernel/cuda_graph_support.h"
 
 namespace oneflow {
 
@@ -35,7 +36,7 @@ class RandomMaskLikeKernelState : public user_op::OpKernelState {
 namespace {
 
 template<DeviceType device_type>
-class RandomMaskLikeKernel final : public user_op::OpKernel {
+class RandomMaskLikeKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   RandomMaskLikeKernel() = default;
   ~RandomMaskLikeKernel() = default;

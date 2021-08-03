@@ -105,7 +105,7 @@ REGISTER_COUNT_NOT_FINITE_GPU_KERNEL(float)
 REGISTER_COUNT_NOT_FINITE_GPU_KERNEL(double)
 
 template<typename T>
-class MultiCountNotFiniteGpuKernel final : public user_op::OpKernel {
+class MultiCountNotFiniteGpuKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   MultiCountNotFiniteGpuKernel() = default;
   ~MultiCountNotFiniteGpuKernel() override = default;
