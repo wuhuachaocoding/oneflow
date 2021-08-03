@@ -51,19 +51,19 @@ void FillTensorDescWithBlob(const Blob* blob, user_op::NaiveTensorDesc* tensor_d
 
 class UserKernel::CudaGraphContext {
  public:
-  CudaGraphContext() : graph_exec_(nullptr) {}
+  CudaGraphContext(cudaStream_t stream) : stream_(stream), graph_exec_(nullptr) {}
   ~CudaGraphContext() {
     if (graph_exec_ != nullptr) { OF_CUDA_CHECK(cudaGraphExecDestroy(graph_exec_)); }
   }
-  bool Captured() const { return graph_exec_ != nullptr; }
+  bool IsCaptured() const { return graph_exec_ != nullptr; }
 
-  void BeginCapture(cudaStream_t stream) {
-    OF_CUDA_CHECK(cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal));
+  void BeginCapture() {
+    OF_CUDA_CHECK(cudaStreamBeginCapture(stream_, cudaStreamCaptureModeGlobal));
   }
 
-  void EndCapture(cudaStream_t stream) {
+  void EndCapture() {
     cudaGraph_t graph;
-    OF_CUDA_CHECK(cudaStreamEndCapture(stream, &graph));
+    OF_CUDA_CHECK(cudaStreamEndCapture(stream_, &graph));
     cudaGraphExecUpdateResult update_result;
     cudaGraphNode_t error_node;
     if (graph_exec_ != nullptr) {
@@ -76,9 +76,10 @@ class UserKernel::CudaGraphContext {
     OF_CUDA_CHECK(cudaGraphDestroy(graph));
   }
 
-  void Launch(cudaStream_t stream) { OF_CUDA_CHECK(cudaGraphLaunch(graph_exec_, stream)); }
+  void Launch() { OF_CUDA_CHECK(cudaGraphLaunch(graph_exec_, stream_)); }
 
  private:
+  cudaStream_t stream_;
   cudaGraphExec_t graph_exec_;
 };
 
@@ -544,17 +545,31 @@ class UserKernelComputeContext final : public user_op::KernelComputeContext {
   }
   DeviceCtx* device_ctx() override { return device_ctx_; }
 
-  void UpdateTensorWithCorrBlob(const std::function<Blob*(const std::string&)>& BnInOp2Blob) {
+  bool UpdateTensorWithCorrBlob(const std::function<Blob*(const std::string&)>& BnInOp2Blob) {
+    bool updated = false;
     for (auto& pair : arg2bn_tensor_pair_) {
       std::unique_ptr<user_op::BlobTensorView>* arg_tensor_ptr = &pair.second.tensor;
       Blob* blob = BnInOp2Blob(pair.second.bn);
-      if (blob == nullptr) { continue; }
-      if (*arg_tensor_ptr) {
-        arg_tensor_ptr->get()->Reset(blob);
+      if (blob == nullptr) {
+        if (*arg_tensor_ptr) {
+          arg_tensor_ptr->reset(nullptr);
+          updated = true;
+        }
       } else {
-        arg_tensor_ptr->reset(new user_op::BlobTensorView(blob));
+        if (*arg_tensor_ptr) {
+          if (arg_tensor_ptr->get()->blob() != blob) {
+            arg_tensor_ptr->get()->Reset(blob);
+            updated = true;
+          } else {
+            if (blob->blob_desc().is_dynamic()) { updated = true; }
+          }
+        } else {
+          arg_tensor_ptr->reset(new user_op::BlobTensorView(blob));
+          updated = true;
+        }
       }
     }
+    return updated;
   }
 
   DeviceType device_type() const override { return base_ctx_.device_type(); }
@@ -627,7 +642,7 @@ void UserKernel::InitUserKernel(DeviceCtx* device_ctx) {
     CudaDeviceCtx* cuda_device_ctx = dynamic_cast<CudaDeviceCtx*>(device_ctx);
     CudaGraphSupport* cuda_graph_support = dynamic_cast<CudaGraphSupport*>(kernel_.get());
     if (cuda_device_ctx && cuda_graph_support && cuda_graph_support->IsCudaGraphSupported()) {
-      cuda_graph_ctx_.reset(new CudaGraphContext());
+      cuda_graph_ctx_.reset(new CudaGraphContext(cuda_device_ctx->cuda_stream()));
     }
   }
 }
@@ -643,8 +658,19 @@ const std::shared_ptr<user_op::OpKernelState>& UserKernel::GetOpKernelState() co
 
 void UserKernel::ForwardUserKernel(std::function<Blob*(const std::string&)> BnInOp2Blob,
                                    user_op::OpKernelState* opkernel_state) const {
-  ctx_->UpdateTensorWithCorrBlob(BnInOp2Blob);
+  const bool updated = ctx_->UpdateTensorWithCorrBlob(BnInOp2Blob);
+  if (cuda_graph_ctx_) {
+    if (cuda_graph_ctx_->IsCaptured() && (!updated)) {
+      cuda_graph_ctx_->Launch();
+      return;
+    }
+    cuda_graph_ctx_->BeginCapture();
+  }
   kernel_->Compute(ctx_.get(), opkernel_state);
+  if (cuda_graph_ctx_) {
+    cuda_graph_ctx_->EndCapture();
+    cuda_graph_ctx_->Launch();
+  }
 }
 
 void UserKernel::VirtualKernelInit(DeviceCtx* device_ctx) {
