@@ -638,11 +638,12 @@ void UserKernel::InitUserKernel(DeviceCtx* device_ctx) {
     KernelCreateContext create_ctx(kernel_conf());
     kernel_.reset(kernel_reg_val->create_fn(&create_ctx));
   }
-  {
+  if (ParseBooleanFromEnv("ONEFLOW_KERNEL_CUDA_GRAPH_ENABLE", false)) {
     UserKernelInitContext init_ctx(device_ctx, kernel_conf(), job_desc());
     CudaDeviceCtx* cuda_device_ctx = dynamic_cast<CudaDeviceCtx*>(device_ctx);
     const auto* cuda_graph_support = dynamic_cast<const CudaGraphSupport*>(kernel_.get());
-    if (cuda_device_ctx && cuda_graph_support && cuda_graph_support->IsCudaGraphSupported(&init_ctx)) {
+    if (cuda_device_ctx && cuda_graph_support
+        && cuda_graph_support->IsCudaGraphSupported(&init_ctx)) {
       cuda_graph_ctx_.reset(new CudaGraphContext(cuda_device_ctx->cuda_stream()));
     }
   }
