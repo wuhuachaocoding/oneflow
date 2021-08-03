@@ -621,6 +621,13 @@ void UserKernel::InitUserKernel(DeviceCtx* device_ctx) {
     KernelCreateContext create_ctx(kernel_conf());
     kernel_.reset(kernel_reg_val->create_fn(&create_ctx));
   }
+  {
+    CudaDeviceCtx* cuda_device_ctx = dynamic_cast<CudaDeviceCtx*>(device_ctx);
+    CudaGraphSupport* cuda_graph_support = dynamic_cast<CudaGraphSupport*>(kernel_.get());
+    if (cuda_device_ctx && cuda_graph_support && cuda_graph_support->IsCudaGraphSupported()) {
+      cuda_graph_ctx_.reset(new CudaGraphContext());
+    }
+  }
 }
 
 std::shared_ptr<user_op::OpKernelState> UserKernel::CreateOpKernelState(DeviceCtx* device_ctx) {
