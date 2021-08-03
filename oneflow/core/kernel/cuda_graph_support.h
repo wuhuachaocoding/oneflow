@@ -16,13 +16,17 @@ limitations under the License.
 
 namespace oneflow {
 
+namespace user_op {
+
 class KernelInitContext;
+
+}
 
 class CudaGraphSupport {
  public:
   virtual ~CudaGraphSupport() {}
 
-  virtual bool IsCudaGraphSupported(KernelInitContext* ctx) const { return true; }
+  virtual bool IsCudaGraphSupported(user_op::KernelInitContext* ctx) const { return true; }
 };
 
 }  // namespace oneflow
