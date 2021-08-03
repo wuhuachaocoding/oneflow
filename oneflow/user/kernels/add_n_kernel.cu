@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include "oneflow/core/framework/framework.h"
+#include "oneflow/core/kernel/cuda_graph_support.h"
 
 namespace oneflow {
 
@@ -95,7 +96,7 @@ const CallFn* LookUpInRegistry(int32_t in_num) {
 }  // namespace
 
 template<typename T>
-class GpuAddNKernel : public user_op::OpKernel {
+class GpuAddNKernel : public user_op::OpKernel, public CudaGraphSupport {
  public:
   GpuAddNKernel() = default;
   ~GpuAddNKernel() = default;

@@ -17,13 +17,14 @@ limitations under the License.
 #include "oneflow/core/ndarray/ndarray_util.h"
 #include "oneflow/core/ndarray/xpu_var_ndarray.h"
 #include "oneflow/core/kernel/kernel_util.h"
+#include "oneflow/core/kernel/cuda_graph_support.h"
 
 namespace oneflow {
 
 namespace {
 
 template<template<typename> class BinaryFunc, DeviceType device_type, typename T>
-class ReduceKernel final : public user_op::OpKernel {
+class ReduceKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   ReduceKernel() = default;
   ~ReduceKernel() = default;
