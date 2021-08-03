@@ -18,6 +18,7 @@ limitations under the License.
 #include "oneflow/core/kernel/random_generator.h"
 #include "oneflow/core/kernel/kernel_util.h"
 #include "oneflow/core/common/data_type.h"
+#include "oneflow/core/kernel/cuda_graph_support.h"
 
 namespace oneflow {
 
@@ -145,7 +146,7 @@ REGISTER_DROPOUT_KERNEL_GPU(float)
 REGISTER_DROPOUT_KERNEL_GPU(double)
 
 template<typename T>
-class DropoutGradKernelGPU final : public user_op::OpKernel {
+class DropoutGradKernelGPU final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   DropoutGradKernelGPU() = default;
   ~DropoutGradKernelGPU() = default;
