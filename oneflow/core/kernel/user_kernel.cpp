@@ -27,6 +27,8 @@ limitations under the License.
 #include "oneflow/core/kernel/kernel_helper.h"
 
 #include <cuda_runtime.h>
+#include "oneflow/core/device/cuda_device_context.h"
+#include "oneflow/core/kernel/cuda_graph_support.h"
 
 namespace oneflow {
 
