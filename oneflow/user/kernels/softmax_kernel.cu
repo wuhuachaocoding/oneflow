@@ -52,7 +52,7 @@ REGISTER_SOFTMAX_GPU_KERNEL(double)
 #undef REGISTER_SOFTMAX_GPU_KERNEL
 
 template<typename T>
-class SoftmaxGradKernel final : public user_op::OpKernel {
+class SoftmaxGradKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   SoftmaxGradKernel() = default;
   ~SoftmaxGradKernel() override = default;
