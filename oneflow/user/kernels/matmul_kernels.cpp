@@ -91,7 +91,7 @@ REGISTER_MATMUL_KERNEL(DeviceType::kGPU, double);
 #endif
 
 #ifdef WITH_CUDA
-class MatmulGpuHalfKernel final : public user_op::OpKernel {
+class MatmulGpuHalfKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   MatmulGpuHalfKernel() = default;
   ~MatmulGpuHalfKernel() = default;
@@ -203,7 +203,7 @@ REGISTER_BATCH_MATMUL_KERNEL(DeviceType::kGPU, double);
 #endif
 
 #ifdef WITH_CUDA
-class BatchMatmulGpuHalfKernel final : public user_op::OpKernel {
+class BatchMatmulGpuHalfKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   BatchMatmulGpuHalfKernel() = default;
   ~BatchMatmulGpuHalfKernel() = default;
@@ -255,7 +255,7 @@ REGISTER_USER_KERNEL("batch_matmul")
 #endif
 
 template<DeviceType device_type, typename T>
-class BroadcastMatmulKernel final : public user_op::OpKernel {
+class BroadcastMatmulKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   BroadcastMatmulKernel() = default;
   ~BroadcastMatmulKernel() = default;
@@ -304,7 +304,7 @@ class BroadcastMatmulKernel final : public user_op::OpKernel {
 };
 
 template<DeviceType device_type, typename T>
-class BroadcastMatmulGradBKernel final : public user_op::OpKernel {
+class BroadcastMatmulGradBKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   BroadcastMatmulGradBKernel() = default;
   ~BroadcastMatmulGradBKernel() = default;

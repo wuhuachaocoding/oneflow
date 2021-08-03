@@ -86,7 +86,7 @@ REGISTER_GPU_GELU_KERNEL(double)
 REGISTER_GPU_GELU_KERNEL(half)
 
 template<typename T>
-class GpuGeluGradKernel final : public user_op::OpKernel {
+class GpuGeluGradKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   GpuGeluGradKernel() = default;
   ~GpuGeluGradKernel() override = default;
