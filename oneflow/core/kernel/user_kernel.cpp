@@ -640,7 +640,7 @@ void UserKernel::InitUserKernel(DeviceCtx* device_ctx) {
   }
   {
     CudaDeviceCtx* cuda_device_ctx = dynamic_cast<CudaDeviceCtx*>(device_ctx);
-    CudaGraphSupport* cuda_graph_support = dynamic_cast<CudaGraphSupport*>(kernel_.get());
+    const auto* cuda_graph_support = dynamic_cast<const CudaGraphSupport*>(kernel_.get());
     if (cuda_device_ctx && cuda_graph_support && cuda_graph_support->IsCudaGraphSupported()) {
       cuda_graph_ctx_.reset(new CudaGraphContext(cuda_device_ctx->cuda_stream()));
     }
