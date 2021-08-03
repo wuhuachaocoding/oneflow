@@ -34,7 +34,7 @@ std::tuple<int32_t, int32_t, int32_t> CalcMNK(const ShapeView& a_shape, const Sh
 }  // namespace
 
 template<DeviceType device_type, typename T>
-class MatmulFloatingKernel final : public user_op::OpKernel, public CudaGraphSupport {
+class MatmulFloatingKernel final : public user_op::OpKernel {
  public:
   MatmulFloatingKernel() = default;
   ~MatmulFloatingKernel() = default;
@@ -91,7 +91,7 @@ REGISTER_MATMUL_KERNEL(DeviceType::kGPU, double);
 #endif
 
 #ifdef WITH_CUDA
-class MatmulGpuHalfKernel final : public user_op::OpKernel, public CudaGraphSupport {
+class MatmulGpuHalfKernel final : public user_op::OpKernel {
  public:
   MatmulGpuHalfKernel() = default;
   ~MatmulGpuHalfKernel() = default;
@@ -143,7 +143,7 @@ REGISTER_USER_KERNEL("matmul")
 #endif
 
 template<DeviceType device_type, typename T>
-class BatchMatmulFloatingKernel final : public user_op::OpKernel, public CudaGraphSupport {
+class BatchMatmulFloatingKernel final : public user_op::OpKernel {
  public:
   BatchMatmulFloatingKernel() = default;
   ~BatchMatmulFloatingKernel() = default;
@@ -203,7 +203,7 @@ REGISTER_BATCH_MATMUL_KERNEL(DeviceType::kGPU, double);
 #endif
 
 #ifdef WITH_CUDA
-class BatchMatmulGpuHalfKernel final : public user_op::OpKernel, public CudaGraphSupport {
+class BatchMatmulGpuHalfKernel final : public user_op::OpKernel {
  public:
   BatchMatmulGpuHalfKernel() = default;
   ~BatchMatmulGpuHalfKernel() = default;
@@ -255,7 +255,7 @@ REGISTER_USER_KERNEL("batch_matmul")
 #endif
 
 template<DeviceType device_type, typename T>
-class BroadcastMatmulKernel final : public user_op::OpKernel, public CudaGraphSupport {
+class BroadcastMatmulKernel final : public user_op::OpKernel {
  public:
   BroadcastMatmulKernel() = default;
   ~BroadcastMatmulKernel() = default;
@@ -304,7 +304,7 @@ class BroadcastMatmulKernel final : public user_op::OpKernel, public CudaGraphSu
 };
 
 template<DeviceType device_type, typename T>
-class BroadcastMatmulGradBKernel final : public user_op::OpKernel, public CudaGraphSupport {
+class BroadcastMatmulGradBKernel final : public user_op::OpKernel {
  public:
   BroadcastMatmulGradBKernel() = default;
   ~BroadcastMatmulGradBKernel() = default;
