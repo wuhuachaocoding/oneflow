@@ -112,7 +112,7 @@ void GetReduceSumLayout(const std::vector<int32_t>& axis, const ShapeView& in_sh
 
 }  // namespace
 
-class ReduceSumHalfKernel final : public user_op::OpKernel {
+class ReduceSumHalfKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   explicit ReduceSumHalfKernel(user_op::KernelCreateContext* ctx) {
     axis_ = RegularAxis(ctx->Attr<std::vector<int32_t>>("axis"));

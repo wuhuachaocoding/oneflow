@@ -170,7 +170,7 @@ struct GpuAddCaller<float16, N> {
 
 }  // namespace
 
-class GpuAddNHalfKernel : public user_op::OpKernel {
+class GpuAddNHalfKernel : public user_op::OpKernel, public CudaGraphSupport {
  public:
   GpuAddNHalfKernel() = default;
   ~GpuAddNHalfKernel() = default;

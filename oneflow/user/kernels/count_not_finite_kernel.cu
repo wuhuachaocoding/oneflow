@@ -16,6 +16,7 @@ limitations under the License.
 #include "oneflow/core/framework/framework.h"
 #include <cub/cub.cuh>
 #include "oneflow/core/kernel/new_kernel_util.h"
+#include "oneflow/core/kernel/cuda_graph_support.h"
 
 namespace oneflow {
 
@@ -75,7 +76,7 @@ int GetCountNotFiniteNumBlocks(const int64_t elem_cnt) {
 }  // namespace
 
 template<typename T>
-class CountNotFiniteGpuKernel final : public user_op::OpKernel {
+class CountNotFiniteGpuKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   CountNotFiniteGpuKernel() = default;
   ~CountNotFiniteGpuKernel() override = default;
