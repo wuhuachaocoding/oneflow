@@ -26,6 +26,8 @@ limitations under the License.
 #include "oneflow/core/kernel/kernel.h"
 #include "oneflow/core/kernel/kernel_helper.h"
 
+#include <cuda_runtime.h>
+
 namespace oneflow {
 
 using Arg2Tensor =
@@ -44,6 +46,39 @@ void FillTensorDescWithBlob(const Blob* blob, user_op::NaiveTensorDesc* tensor_d
 }
 
 }  // namespace
+
+class UserKernel::CudaGraphContext {
+ public:
+  CudaGraphContext() : graph_exec_(nullptr) {}
+  ~CudaGraphContext() {
+    if (graph_exec_ != nullptr) { OF_CUDA_CHECK(cudaGraphExecDestroy(graph_exec_)); }
+  }
+  bool Captured() const { return graph_exec_ != nullptr; }
+
+  void BeginCapture(cudaStream_t stream) {
+    OF_CUDA_CHECK(cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal));
+  }
+
+  void EndCapture(cudaStream_t stream) {
+    cudaGraph_t graph;
+    OF_CUDA_CHECK(cudaStreamEndCapture(stream, &graph));
+    cudaGraphExecUpdateResult update_result;
+    cudaGraphNode_t error_node;
+    if (graph_exec_ != nullptr) {
+      OF_CUDA_CHECK(cudaGraphExecUpdate(graph_exec_, graph, &error_node, &update_result));
+    }
+    if (graph_exec_ == nullptr || update_result != cudaGraphExecUpdateSuccess) {
+      if (graph_exec_ != nullptr) { OF_CUDA_CHECK(cudaGraphExecDestroy(graph_exec_)); }
+      OF_CUDA_CHECK(cudaGraphInstantiate(&graph_exec_, graph, NULL, NULL, 0));
+    }
+    OF_CUDA_CHECK(cudaGraphDestroy(graph));
+  }
+
+  void Launch(cudaStream_t stream) { OF_CUDA_CHECK(cudaGraphLaunch(graph_exec_, stream)); }
+
+ private:
+  cudaGraphExec_t graph_exec_;
+};
 
 class UserKernelBaseContext {
  public:
@@ -569,6 +604,8 @@ class UserKernelRegContext final : public user_op::KernelRegContext {
   user_op::UserOpConfWrapper user_op_conf_;
   UserKernelBaseContext base_ctx_;
 };
+
+UserKernel::~UserKernel() = default;
 
 void UserKernel::InitUserKernel(DeviceCtx* device_ctx) {
   ctx_.reset(new UserKernelComputeContext(device_ctx, kernel_conf(), job_desc()));
