@@ -15,11 +15,12 @@ limitations under the License.
 */
 #include "oneflow/core/framework/framework.h"
 #include "oneflow/core/cuda/softmax.cuh"
+#include "oneflow/core/kernel/cuda_graph_support.h"
 
 namespace oneflow {
 
 template<typename T>
-class SoftmaxKernel final : public user_op::OpKernel {
+class SoftmaxKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   SoftmaxKernel() = default;
   ~SoftmaxKernel() override = default;
