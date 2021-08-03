@@ -58,7 +58,7 @@ class UserKernel::CudaGraphContext {
   bool IsCaptured() const { return graph_exec_ != nullptr; }
 
   void BeginCapture() {
-    OF_CUDA_CHECK(cudaStreamBeginCapture(stream_, cudaStreamCaptureModeGlobal));
+    OF_CUDA_CHECK(cudaStreamBeginCapture(stream_, cudaStreamCaptureModeThreadLocal));
   }
 
   void EndCapture() {
