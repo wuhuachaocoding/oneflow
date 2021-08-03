@@ -16,6 +16,7 @@ limitations under the License.
 #include "oneflow/core/framework/framework.h"
 #include "oneflow/core/kernel/new_kernel_util.h"
 #include "oneflow/core/framework/config_def.h"
+#include "oneflow/core/kernel/cuda_graph_support.h"
 
 namespace oneflow {
 
@@ -33,7 +34,7 @@ std::tuple<int32_t, int32_t, int32_t> CalcMNK(const ShapeView& a_shape, const Sh
 }  // namespace
 
 template<DeviceType device_type, typename T>
-class MatmulFloatingKernel final : public user_op::OpKernel {
+class MatmulFloatingKernel final : public user_op::OpKernel, public CudaGraphSupport {
  public:
   MatmulFloatingKernel() = default;
   ~MatmulFloatingKernel() = default;
