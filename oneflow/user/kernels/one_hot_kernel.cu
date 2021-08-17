@@ -34,7 +34,7 @@ __global__ void OneHotEncodeGpu(int64_t elem_cnt, const int64_t depth, const T o
 }  // namespace
 
 template<typename T, typename K>
-class GpuOneHotKernel final : public user_op::OpKernel {
+class GpuOneHotKernel final : public user_op::OpKernel, public user_op::CudaGraphSupport {
  public:
   GpuOneHotKernel() = default;
   ~GpuOneHotKernel() = default;
