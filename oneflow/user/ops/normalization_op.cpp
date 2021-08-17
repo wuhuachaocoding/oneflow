@@ -649,12 +649,14 @@ REGISTER_USER_OP_GRAD("normalization")
                                   }
                                 });
 
-      ctx->FwOp().InputGradBind(user_op::OpArg("gamma", 0), [&ctx]() -> const std::string& {
-        return ctx->GetOp(grad_op_name).output("gamma_diff", 0);
-      });
-      ctx->FwOp().InputGradBind(user_op::OpArg("beta", 0), [&ctx]() -> const std::string& {
-        return ctx->GetOp(grad_op_name).output("beta_diff", 0);
-      });
+      ctx->FwOp().InputGradBind(user_op::OpArg("gamma", 0),
+                                [&ctx, &grad_op_name]() -> const std::string& {
+                                  return ctx->GetOp(grad_op_name).output("gamma_diff", 0);
+                                });
+      ctx->FwOp().InputGradBind(user_op::OpArg("beta", 0),
+                                [&ctx, &grad_op_name]() -> const std::string& {
+                                  return ctx->GetOp(grad_op_name).output("beta_diff", 0);
+                                });
       return Maybe<void>::Ok();
     });
 
@@ -690,12 +692,14 @@ REGISTER_USER_OP_GRAD("normalization_add_relu")
                                     return ctx->GetOp(grad_op_name).output("addend_diff", 0);
                                   });
       }
-      ctx->FwOp().InputGradBind(user_op::OpArg("gamma", 0), [&ctx]() -> const std::string& {
-        return ctx->GetOp(grad_op_name).output("gamma_diff", 0);
-      });
-      ctx->FwOp().InputGradBind(user_op::OpArg("beta", 0), [&ctx]() -> const std::string& {
-        return ctx->GetOp(grad_op_name).output("beta_diff", 0);
-      });
+      ctx->FwOp().InputGradBind(user_op::OpArg("gamma", 0),
+                                [&ctx, &grad_op_name]() -> const std::string& {
+                                  return ctx->GetOp(grad_op_name).output("gamma_diff", 0);
+                                });
+      ctx->FwOp().InputGradBind(user_op::OpArg("beta", 0),
+                                [&ctx, &grad_op_name]() -> const std::string& {
+                                  return ctx->GetOp(grad_op_name).output("beta_diff", 0);
+                                });
       return Maybe<void>::Ok();
     });
 
