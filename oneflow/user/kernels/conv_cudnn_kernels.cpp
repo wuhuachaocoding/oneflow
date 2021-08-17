@@ -21,7 +21,7 @@ limitations under the License.
 #include "oneflow/core/kernel/new_kernel_util.h"
 #include "oneflow/core/job/resource_desc.h"
 #include "oneflow/core/job/global_for.h"
-#include "oneflow/core/device/cuda_graph_context.h"
+#include "oneflow/core/device/cuda_graph_support.h"
 
 namespace oneflow {
 
