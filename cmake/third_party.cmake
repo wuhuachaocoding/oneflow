@@ -254,6 +254,13 @@ if(BUILD_HWLOC)
   add_definitions(-DWITH_HWLOC)
 endif()
 
+if (WITH_MPI)
+  find_package(MPI REQUIRED)
+  add_definitions(-DWITH_MPI)
+  list(APPEND ONEFLOW_THIRD_PARTY_INCLUDE_DIRS ${MPI_INCLUDE_PATH})
+  list(APPEND oneflow_third_party_libs ${MPI_LIBRARIES})
+endif()
+
 include_directories(SYSTEM ${ONEFLOW_THIRD_PARTY_INCLUDE_DIRS})
 
 if(WITH_XLA)
