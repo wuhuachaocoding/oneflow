@@ -24,7 +24,6 @@ limitations under the License.
 #include "oneflow/core/job/global_for.h"
 #include "oneflow/core/thread/thread_pool.h"
 #include "oneflow/core/device/cuda_util.h"
-#include "oneflow/core/job/plan.pb.h"
 
 #include <nccl.h>
 
@@ -266,10 +265,10 @@ class StreamCtx {
 
 void LaunchFusedAllReduce(const CommGroup& comm_group,
                           const std::vector<std::unique_ptr<StreamCtx>>& device_id2stream_ctx,
-                          const std::shared_ptr<RequestStore>& request_store,
+                          const std::shared_ptr<RequestStore>& request_store, const int64_t job_id,
                           const std::vector<int32_t>& request_ids) {
   CHECK_LE(request_ids.size(), kMultiCopyParamsMaxSize);
-  RequestEntry* first_request_entry = request_store->MutRequestEntry(request_ids.front());
+  RequestEntry* first_request_entry = request_store->MutRequestEntry(job_id, request_ids.front());
   const ncclDataType_t nccl_data_type =
       GetNcclDataType(first_request_entry->desc().op_desc().data_type());
   const ncclRedOp_t nccl_reduce_op =
@@ -281,7 +280,8 @@ void LaunchFusedAllReduce(const CommGroup& comm_group,
   int64_t offset = 0;
   for (const int32_t request_id : request_ids) {
     offset_vec.emplace_back(offset);
-    offset += GetMultiCopyAlignedSize(request_store->MutRequestEntry(request_id)->size_in_bytes());
+    offset += GetMultiCopyAlignedSize(
+        request_store->MutRequestEntry(job_id, request_id)->size_in_bytes());
   }
   const int64_t elem_cnt = offset / size_of_data_type;
   for (int32_t local_rank = 0; local_rank < comm_group.local_rank_count(); ++local_rank) {
@@ -290,7 +290,7 @@ void LaunchFusedAllReduce(const CommGroup& comm_group,
     const StreamCtx* stream_ctx = device_id2stream_ctx.at(comm_rank.device_id()).get();
     CHECK_LE(offset, stream_ctx->fusion_buffer_size());
     for (int i = 0; i < request_ids.size(); ++i) {
-      RequestEntry* request_entry = request_store->MutRequestEntry(request_ids.at(i));
+      RequestEntry* request_entry = request_store->MutRequestEntry(job_id, request_ids.at(i));
       copy_in_params.Add(stream_ctx->fusion_buffer() + offset_vec.at(i),
                          request_entry->GetRuntimeRequest(local_rank)->send_buff,
                          request_entry->size_in_bytes());
@@ -315,7 +315,7 @@ void LaunchFusedAllReduce(const CommGroup& comm_group,
     const CommRank& comm_rank = comm_group.GetCommRank(local_rank);
     const StreamCtx* stream_ctx = device_id2stream_ctx.at(comm_rank.device_id()).get();
     for (int i = 0; i < request_ids.size(); ++i) {
-      RequestEntry* request_entry = request_store->MutRequestEntry(request_ids.at(i));
+      RequestEntry* request_entry = request_store->MutRequestEntry(job_id, request_ids.at(i));
       copy_out_params.Add(request_entry->GetRuntimeRequest(local_rank)->recv_buff,
                           stream_ctx->fusion_buffer() + offset_vec.at(i),
                           request_entry->size_in_bytes());
@@ -327,7 +327,7 @@ void LaunchFusedAllReduce(const CommGroup& comm_group,
 
 void LaunchAggregatedOps(const CommGroup& comm_group,
                          const std::vector<std::unique_ptr<StreamCtx>>& device_id2stream_ctx,
-                         const std::shared_ptr<RequestStore>& request_store,
+                         const std::shared_ptr<RequestStore>& request_store, const int64_t job_id,
                          const std::vector<int32_t>& request_ids) {
   OF_NCCL_CHECK(ncclGroupStart());
   for (int32_t local_rank = 0; local_rank < comm_group.local_rank_count(); ++local_rank) {
@@ -336,7 +336,7 @@ void LaunchAggregatedOps(const CommGroup& comm_group,
     const StreamCtx* stream_ctx = device_id2stream_ctx.at(comm_rank.device_id()).get();
     OF_CUDA_CHECK(cudaSetDevice(comm_rank.device_id()));
     for (int request_id : request_ids) {
-      RequestEntry* request_entry = request_store->MutRequestEntry(request_id);
+      RequestEntry* request_entry = request_store->MutRequestEntry(job_id, request_id);
       const auto& op_desc = request_entry->desc().op_desc();
       const std::shared_ptr<const RuntimeRequestInfo>& runtime_request_info =
           request_entry->GetRuntimeRequest(local_rank);
@@ -394,12 +394,13 @@ void LaunchAggregatedOps(const CommGroup& comm_group,
 void AddCallbackAndResetRuntimeRequest(
     const CommGroup& comm_group,
     const std::vector<std::unique_ptr<StreamCtx>>& device_id2stream_ctx,
-    const std::shared_ptr<RequestStore>& request_store, const std::vector<int32_t>& request_ids) {
+    const std::shared_ptr<RequestStore>& request_store, const int64_t job_id,
+    const std::vector<int32_t>& request_ids) {
   std::vector<std::vector<std::shared_ptr<const RuntimeRequestInfo>>> saved_runtime_request_info(
       request_ids.size());
   for (int32_t i = 0; i < request_ids.size(); i++) {
     saved_runtime_request_info.at(i) =
-        std::move(request_store->MutRequestEntry(request_ids.at(i))->ResetRuntimeRequest());
+        std::move(request_store->MutRequestEntry(job_id, request_ids.at(i))->ResetRuntimeRequest());
   }
   for (int32_t local_rank = 0; local_rank < comm_group.local_rank_count(); ++local_rank) {
     const CommRank& comm_rank = comm_group.GetCommRank(local_rank);
@@ -408,7 +409,7 @@ void AddCallbackAndResetRuntimeRequest(
         std::make_shared<std::vector<std::shared_ptr<const RuntimeRequestInfo>>>();
     runtime_request_info_vec->reserve(request_ids.size());
     for (int32_t i = 0; i < request_ids.size(); ++i) {
-      RequestEntry* request_entry = request_store->MutRequestEntry(request_ids.at(i));
+      RequestEntry* request_entry = request_store->MutRequestEntry(job_id, request_ids.at(i));
       runtime_request_info_vec->emplace_back(
           std::move(saved_runtime_request_info.at(i).at(local_rank)));
     }
@@ -424,8 +425,7 @@ void AddCallbackAndResetRuntimeRequest(
 }  // namespace
 
 struct NcclExecutorBackend::Impl {
-  Impl(const CollectiveBoxingConf& conf, const CollectiveBoxingPlan& plan,
-       std::shared_ptr<RequestStore> request_store)
+  Impl(const CollectiveBoxingConf& conf, std::shared_ptr<RequestStore> request_store)
       : conf(conf), request_store(std::move(request_store)) {
     CHECK_GT(conf.nccl_num_streams(), 0);
     CHECK_GE(conf.nccl_fusion_threshold_mb(), 0);
@@ -434,70 +434,73 @@ struct NcclExecutorBackend::Impl {
     current_stream_id = 0;
     enable_mixed_fusion =
         (!conf.nccl_fusion_all_reduce_use_buffer()) && conf.nccl_enable_mixed_fusion();
-    CudaCurrentDeviceGuard guard;
-    InitCommGroup();
-    InitRequestIdCommGroupIndex();
     InitStreamCtx();
     InitIsOpTypeFusionEnabled();
   }
   ~Impl() {
-    request_id2stream_id2comm_group.clear();
+    // request_id2stream_id2comm_group.clear();
     stream_id2device_id2stream_ctx.clear();
     device_set2stream_id2comm_group.clear();
   }
 
-  void InitCommGroup() {
+  void InitCommGroup(const std::vector<int64_t>& job_ids) {
     std::set<int64_t> local_device_ids;
-    for (int32_t request_id = 0; request_id < request_store->RequestCount(); ++request_id) {
-      auto* request_entry = request_store->MutRequestEntry(request_id);
-      const auto& request = request_entry->desc();
-      if (request.op_desc().backend() != Backend::kBackendNCCL) { continue; }
-      if (!request_entry->HasRankOnThisNode()) { continue; }
-      const DeviceSet& device_set = request.device_set();
-      if (device_set2stream_id2comm_group.count(device_set) > 0) { continue; }
-      auto& stream_id2comm_group = device_set2stream_id2comm_group[device_set];
-      stream_id2comm_group.resize(num_streams);
-      for (int32_t stream_id = 0; stream_id < num_streams; ++stream_id) {
-        stream_id2comm_group.at(stream_id).InitGroup(
-            device_set, GetNcclUniqueIdRpcKey(request.op_desc().name(), stream_id));
+    for (const auto& job_id : job_ids) {
+      for (int32_t request_id = 0; request_id < request_store->RequestCount4Job(job_id);
+           ++request_id) {
+        auto* request_entry = request_store->MutRequestEntry(job_id, request_id);
+        const auto& request = request_entry->desc();
+        if (request.op_desc().backend() != Backend::kBackendNCCL) { continue; }
+        if (!request_entry->HasRankOnThisNode()) { continue; }
+        const DeviceSet& device_set = request.device_set();
+        if (device_set2stream_id2comm_group.count(device_set) > 0) { continue; }
+        auto& stream_id2comm_group = device_set2stream_id2comm_group[device_set];
+        stream_id2comm_group.resize(num_streams);
+        for (int32_t stream_id = 0; stream_id < num_streams; ++stream_id) {
+          stream_id2comm_group.at(stream_id).InitGroup(
+              device_set, GetNcclUniqueIdRpcKey(request.op_desc().name(), stream_id));
+        }
+        for (int32_t i = 0; i < stream_id2comm_group.at(0).local_rank_count(); ++i) {
+          local_device_ids.emplace(stream_id2comm_group.at(0).GetCommRank(i).device_id());
+        }
       }
-      for (int32_t i = 0; i < stream_id2comm_group.at(0).local_rank_count(); ++i) {
-        local_device_ids.emplace(stream_id2comm_group.at(0).GetCommRank(i).device_id());
+    }
+    for (int32_t stream_id = 0; stream_id < num_streams; ++stream_id) {
+      for (const int64_t device_id : local_device_ids) {
+        if (stream_id2device_id2stream_ctx.at(stream_id).at(device_id) == nullptr) {
+          stream_id2device_id2stream_ctx.at(stream_id).at(device_id) =
+              std::make_unique<StreamCtx>(device_id, fusion_threshold);
+        }
       }
     }
   }
 
-  void InitRequestIdCommGroupIndex() {
-    request_id2stream_id2comm_group.resize(request_store->RequestCount());
-    for (int32_t request_id = 0; request_id < request_store->RequestCount(); ++request_id) {
-      const DeviceSet& device_set = request_store->MutRequestEntry(request_id)->desc().device_set();
-      auto it = device_set2stream_id2comm_group.find(device_set);
-      if (it != device_set2stream_id2comm_group.end()) {
-        request_id2stream_id2comm_group.at(request_id) = &it->second;
-      } else {
-        request_id2stream_id2comm_group.at(request_id) = nullptr;
+  void InitRequestIdCommGroupIndex(const std::vector<int64_t>& job_ids) {
+    for (const auto& job_id : job_ids) {
+      std::vector<std::vector<CommGroup>*> request_id2stream_id2comm_group;
+      request_id2stream_id2comm_group.resize(request_store->RequestCount4Job(job_id));
+      for (int32_t request_id = 0; request_id < request_store->RequestCount4Job(job_id);
+           ++request_id) {
+        const DeviceSet& device_set =
+            request_store->MutRequestEntry(job_id, request_id)->desc().device_set();
+        auto it = device_set2stream_id2comm_group.find(device_set);
+        if (it != device_set2stream_id2comm_group.end()) {
+          request_id2stream_id2comm_group.at(request_id) = &it->second;
+        } else {
+          request_id2stream_id2comm_group.at(request_id) = nullptr;
+        }
       }
+      CHECK(job_id2request_id2stream_id2comm_group.emplace(job_id, request_id2stream_id2comm_group)
+                .second);
     }
   }
 
   void InitStreamCtx() {
     int32_t num_devices;
     OF_CUDA_CHECK(cudaGetDeviceCount(&num_devices));
-    std::set<int32_t> local_device_ids;
-    for (const auto& device_set7stream_id2comm_group : device_set2stream_id2comm_group) {
-      const CommGroup& comm_group = device_set7stream_id2comm_group.second.front();
-      for (int32_t local_rank = 0; local_rank < comm_group.local_rank_count(); ++local_rank) {
-        const int32_t device_id = comm_group.GetCommRank(local_rank).device_id();
-        local_device_ids.emplace(device_id);
-      }
-    }
     stream_id2device_id2stream_ctx.resize(num_streams);
     for (int64_t stream_id = 0; stream_id < num_streams; ++stream_id) {
       stream_id2device_id2stream_ctx.at(stream_id).resize(num_devices);
-      for (const int64_t device_id : local_device_ids) {
-        stream_id2device_id2stream_ctx.at(stream_id).at(device_id) =
-            std::make_unique<StreamCtx>(device_id, fusion_threshold);
-      }
     }
   }
 
@@ -511,7 +514,11 @@ struct NcclExecutorBackend::Impl {
     op_type2fusion_enabled.at(OpType::kOpTypeAll2All) = false;
   }
 
-  const CommGroup& GetCommGroup(const std::vector<int32_t>& request_ids, int32_t stream_id) const {
+  const CommGroup& GetCommGroup(const int64_t job_id, const std::vector<int32_t>& request_ids,
+                                int32_t stream_id) const {
+    const auto& it = job_id2request_id2stream_id2comm_group.find(job_id);
+    CHECK(it != job_id2request_id2stream_id2comm_group.end());
+    const auto& request_id2stream_id2comm_group = it->second;
     const auto* stream_id2comm_group = request_id2stream_id2comm_group.at(request_ids.at(0));
     for (int64_t request_id = 0; request_id < request_ids.size(); ++request_id) {
       CHECK_EQ(request_id2stream_id2comm_group.at(request_id), stream_id2comm_group);
@@ -558,20 +565,21 @@ struct NcclExecutorBackend::Impl {
     }
   }
 
-  void GroupRequests(const std::vector<int32_t>& request_ids,
-                     const std::function<void(std::vector<int32_t>&&)>& Handler) {
+  void GroupRequests(const int64_t job_id, const std::vector<int32_t>& request_ids,
+                     const std::function<void(int64_t, std::vector<int32_t>&&)>& Handler) {
     std::vector<int32_t> group;
     int64_t group_size = 0;
     const int64_t fusion_max_ops = std::min(conf.nccl_fusion_max_ops(), kMultiCopyParamsMaxSize);
     for (const int32_t request_id : request_ids) {
-      const auto* request_entry = request_store->MutRequestEntry(request_id);
+      const auto* request_entry = request_store->MutRequestEntry(job_id, request_id);
       const auto& request = request_entry->desc();
       const int64_t size = GetMultiCopyAlignedSize(request_entry->size_in_bytes());
       if (group.empty()
-          || !CanRequestEntryFuse(request_store->MutRequestEntry(group.back()), request_entry)
+          || !CanRequestEntryFuse(request_store->MutRequestEntry(job_id, group.back()),
+                                  request_entry)
           || group_size + size > fusion_threshold || group.size() >= fusion_max_ops) {
         if (!group.empty()) {
-          Handler(std::move(group));
+          Handler(job_id, std::move(group));
           group.clear();
           group_size = 0;
         }
@@ -579,22 +587,23 @@ struct NcclExecutorBackend::Impl {
       group.push_back(request_id);
       group_size += size;
     }
-    if (!group.empty()) { Handler(std::move(group)); }
+    if (!group.empty()) { Handler(job_id, std::move(group)); }
   }
 
-  void ExecuteRequests(const std::vector<int32_t>& request_ids) {
+  void ExecuteRequests(const int64_t job_id, const std::vector<int32_t>& request_ids) {
     const int32_t stream_id = NextStreamId();
     CudaCurrentDeviceGuard device_guard;
-    auto& comm_group = GetCommGroup(request_ids, stream_id);
+    auto& comm_group = GetCommGroup(job_id, request_ids, stream_id);
     auto& device_id2stream_ctx = stream_id2device_id2stream_ctx.at(stream_id);
-    if (request_store->MutRequestEntry(request_ids.front())->desc().op_desc().op_type()
+    if (request_store->MutRequestEntry(job_id, request_ids.front())->desc().op_desc().op_type()
             == OpType::kOpTypeAllReduce
         && conf.nccl_fusion_all_reduce_use_buffer() && request_ids.size() > 1) {
-      LaunchFusedAllReduce(comm_group, device_id2stream_ctx, request_store, request_ids);
+      LaunchFusedAllReduce(comm_group, device_id2stream_ctx, request_store, job_id, request_ids);
     } else {
-      LaunchAggregatedOps(comm_group, device_id2stream_ctx, request_store, request_ids);
+      LaunchAggregatedOps(comm_group, device_id2stream_ctx, request_store, job_id, request_ids);
     }
-    AddCallbackAndResetRuntimeRequest(comm_group, device_id2stream_ctx, request_store, request_ids);
+    AddCallbackAndResetRuntimeRequest(comm_group, device_id2stream_ctx, request_store, job_id,
+                                      request_ids);
   }
 
   CollectiveBoxingConf conf;
@@ -606,27 +615,33 @@ struct NcclExecutorBackend::Impl {
   std::shared_ptr<RequestStore> request_store;
   HashMap<DeviceSet, std::vector<CommGroup>> device_set2stream_id2comm_group;
   std::vector<std::vector<std::unique_ptr<StreamCtx>>> stream_id2device_id2stream_ctx;
-  std::vector<std::vector<CommGroup>*> request_id2stream_id2comm_group;
+  HashMap<int64_t, std::vector<std::vector<CommGroup>*>> job_id2request_id2stream_id2comm_group;
 };
 
 NcclExecutorBackend::NcclExecutorBackend() = default;
 
 NcclExecutorBackend::~NcclExecutorBackend() { impl_.reset(); }
 
-void NcclExecutorBackend::Init(const CollectiveBoxingPlan& collective_boxing_plan,
-                               std::shared_ptr<RequestStore> request_store) {
+void NcclExecutorBackend::Init(std::shared_ptr<RequestStore> request_store) {
   impl_ = std::make_unique<Impl>(Global<ResourceDesc, ForSession>::Get()->collective_boxing_conf(),
-                                 collective_boxing_plan, request_store);
+                                 request_store);
+}
+
+void NcclExecutorBackend::AddPlan(const std::vector<int64_t>& job_ids) {
+  CudaCurrentDeviceGuard guard;
+  impl_->InitCommGroup(job_ids);
+  impl_->InitRequestIdCommGroupIndex(job_ids);
 }
 
 void NcclExecutorBackend::GroupRequests(
-    const std::vector<int32_t>& request_ids,
-    const std::function<void(std::vector<int32_t>&&)>& Handler) {
-  impl_->GroupRequests(request_ids, Handler);
+    const int64_t job_id, const std::vector<int32_t>& request_ids,
+    const std::function<void(int64_t, std::vector<int32_t>&&)>& Handler) {
+  impl_->GroupRequests(job_id, request_ids, Handler);
 }
 
-void NcclExecutorBackend::ExecuteRequests(const std::vector<int32_t>& request_ids) {
-  impl_->ExecuteRequests(request_ids);
+void NcclExecutorBackend::ExecuteRequests(const int64_t job_id,
+                                          const std::vector<int32_t>& request_ids) {
+  impl_->ExecuteRequests(job_id, request_ids);
 }
 
 }  // namespace collective

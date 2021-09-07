@@ -37,10 +37,10 @@ class DynamicCoordinator : public Coordinator {
   DynamicCoordinator();
   ~DynamicCoordinator() override;
 
-  void Init(const CollectiveBoxingPlan& collective_boxing_plan,
-            std::shared_ptr<RequestStore> request_store,
+  void Init(std::shared_ptr<RequestStore> request_store,
             std::shared_ptr<Executor> executor) override;
-  void AddRequest(int32_t request_id) override;
+  void AddPlan(const std::vector<int64_t>& job_ids) override;
+  void AddRequest(int64_t job_id, int32_t request_id) override;
 
   struct Impl;
   std::unique_ptr<Impl> impl_;

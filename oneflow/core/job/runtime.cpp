@@ -120,7 +120,8 @@ void Runtime::NewAllGlobal(const Plan& plan, size_t total_piece_num, bool is_exp
     }
 #endif
   }
-  Global<boxing::collective::Scheduler>::New(plan);
+  Global<boxing::collective::Scheduler>::New();
+  Global<boxing::collective::Scheduler>::Get()->AddPlan(plan);
   Global<MemoryAllocator>::New();
   Global<RegstMgr>::New(plan);
   Global<ActorMsgBus>::New();

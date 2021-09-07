@@ -111,19 +111,24 @@ DynamicCoordinator::Impl::~Impl() {
   coordinating_thread.join();
 }
 
-void DynamicCoordinator::Impl::AddRequest(int32_t request_id) {
+void DynamicCoordinator::AddPlan(const std::vector<int64_t>& job_ids) {
+  // TODO
+}
+
+void DynamicCoordinator::Impl::AddRequest(int64_t job_id, int32_t request_id) {
   RequestEntry* request_entry = request_store->MutRequestEntry(request_id);
   if (request_entry->NodeCount() == 1) {
-    ExecuteRequests(std::vector<int32_t>({request_id}));
+    ExecuteRequests(job_id, std::vector<int32_t>({request_id}));
   } else {
     std::lock_guard<std::mutex> lock(pending_requests_mutex);
     pending_requests.push_back(request_id);
   }
 }
 
-void DynamicCoordinator::Impl::ExecuteRequests(const std::vector<int32_t>& request_ids) {
+void DynamicCoordinator::Impl::ExecuteRequests(int64_t job_id,
+                                               const std::vector<int32_t>& request_ids) {
   std::lock_guard<std::mutex> lock(executor_mutex);
-  executor->ExecuteRequests(std::vector<int32_t>(request_ids));
+  executor->ExecuteRequests(job_id, std::vector<int32_t>(request_ids));
 }
 
 void DynamicCoordinator::Impl::CoordinatingLoop() {
@@ -193,13 +198,14 @@ DynamicCoordinator::DynamicCoordinator() = default;
 
 DynamicCoordinator::~DynamicCoordinator() = default;
 
-void DynamicCoordinator::Init(const CollectiveBoxingPlan& collective_boxing_plan,
-                              std::shared_ptr<RequestStore> request_store,
+void DynamicCoordinator::Init(std::shared_ptr<RequestStore> request_store,
                               std::shared_ptr<Executor> executor) {
   impl_.reset(new Impl(request_store, executor));
 }
 
-void DynamicCoordinator::AddRequest(int32_t request_id) { impl_->AddRequest(request_id); }
+void DynamicCoordinator::AddRequest(int64_t job_id, int32_t request_id) {
+  impl_->AddRequest(job_id, request_id);
+}
 
 }  // namespace collective
 

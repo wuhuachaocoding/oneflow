@@ -35,13 +35,14 @@ class Executor {
   Executor() = default;
   virtual ~Executor() = default;
 
-  virtual void Init(const CollectiveBoxingPlan& collective_boxing_plan,
-                    std::shared_ptr<RequestStore> request_store) = 0;
-  virtual void GroupRequests(const std::vector<int32_t>& request_ids,
-                             const std::function<void(std::vector<int32_t>&&)>& Handler) = 0;
-  virtual void ExecuteGroupedRequests(const std::vector<int32_t>& request_ids) = 0;
+  virtual void Init(std::shared_ptr<RequestStore> request_store) = 0;
+  virtual void AddPlan(const std::vector<int64_t>& job_ids) = 0;
+  virtual void GroupRequests(
+      int64_t job_id, const std::vector<int32_t>& request_ids,
+      const std::function<void(int64_t, std::vector<int32_t>&&)>& Handler) = 0;
+  virtual void ExecuteGroupedRequests(int64_t job_id, const std::vector<int32_t>& request_ids) = 0;
 
-  virtual void ExecuteRequests(const std::vector<int32_t>& request_ids);
+  virtual void ExecuteRequests(int64_t job_id, const std::vector<int32_t>& request_ids);
 };
 
 }  // namespace collective

@@ -28,6 +28,17 @@ namespace collective {
 
 class RequestHandle;
 
+class CollectiveBoxingExecutorPlanToken {
+ public:
+  OF_DISALLOW_COPY_AND_MOVE(CollectiveBoxingExecutorPlanToken);
+  CollectiveBoxingExecutorPlanToken(const std::vector<int64_t>& job_ids) : job_ids_(job_ids) {}
+  ~CollectiveBoxingExecutorPlanToken() = default;
+  const std::vector<int64_t>& job_ids() const { return job_ids_; }
+
+ private:
+  std::vector<int64_t> job_ids_;
+};
+
 class Scheduler final {
  public:
   OF_DISALLOW_COPY_AND_MOVE(Scheduler);
@@ -36,10 +47,11 @@ class Scheduler final {
   std::shared_ptr<RequestHandle> CreateRequestHandle(const RankDesc& rank_desc);
   void Schedule(const std::shared_ptr<RequestHandle>& handle,
                 std::shared_ptr<const RuntimeRequestInfo> request_info);
+  std::shared_ptr<const CollectiveBoxingExecutorPlanToken> AddPlan(const Plan& plan);
 
  private:
   friend class Global<Scheduler>;
-  explicit Scheduler(const Plan& plan);
+  Scheduler();
 
   struct Impl;
   std::unique_ptr<Impl> impl_;

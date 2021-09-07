@@ -33,11 +33,11 @@ class NcclExecutorBackend : public ExecutorBackend {
   ~NcclExecutorBackend() override;
 
  private:
-  void Init(const CollectiveBoxingPlan& collective_boxing_plan,
-            std::shared_ptr<RequestStore> request_store) override;
-  void GroupRequests(const std::vector<int32_t>& request_ids,
-                     const std::function<void(std::vector<int32_t>&&)>& Handler) override;
-  void ExecuteRequests(const std::vector<int32_t>& request_ids) override;
+  void Init(std::shared_ptr<RequestStore> request_store) override;
+  void AddPlan(const std::vector<int64_t>& job_ids) override;
+  void GroupRequests(int64_t job_id, const std::vector<int32_t>& request_ids,
+                     const std::function<void(int64_t, std::vector<int32_t>&&)>& Handler) override;
+  void ExecuteRequests(int64_t job_id, const std::vector<int32_t>& request_ids) override;
 
   struct Impl;
   std::unique_ptr<Impl> impl_;

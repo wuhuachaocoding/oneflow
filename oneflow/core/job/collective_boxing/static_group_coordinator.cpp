@@ -20,6 +20,7 @@ limitations under the License.
 #include "oneflow/core/job/resource_desc.h"
 #include "oneflow/core/persistence/tee_persistent_log_stream.h"
 #include "oneflow/core/job/global_for.h"
+#include "oneflow/core/common/str_util.h"
 
 namespace oneflow {
 
@@ -29,62 +30,66 @@ namespace collective {
 
 namespace {
 
-void SortRequestIdsByOrder(RequestStore* request_store, std::vector<int32_t>* requests) {
-  std::sort(requests->begin(), requests->end(), [request_store](int32_t a, int32_t b) {
-    return request_store->MutRequestEntry(a)->desc().order()
-           < request_store->MutRequestEntry(b)->desc().order();
+void SortRequestIdsByOrder(const int64_t job_id, RequestStore* request_store,
+                           std::vector<int32_t>* requests) {
+  std::sort(requests->begin(), requests->end(), [job_id, request_store](int32_t a, int32_t b) {
+    return request_store->MutRequestEntry(job_id, a)->desc().order()
+           < request_store->MutRequestEntry(job_id, b)->desc().order();
   });
 }
 
 }  // namespace
 
-void StaticGroupCoordinator::Init(const CollectiveBoxingPlan& collective_boxing_plan,
-                                  std::shared_ptr<RequestStore> request_store,
+void StaticGroupCoordinator::Init(std::shared_ptr<RequestStore> request_store,
                                   std::shared_ptr<Executor> executor) {
   request_store_ = request_store;
   executor_ = executor;
-  const CollectiveBoxingConf collective_boxing_conf =
-      Global<ResourceDesc, ForSession>::Get()->collective_boxing_conf();
-  HashMap<int64_t, std::vector<int32_t>> job_id2request_ids;
-  const int32_t request_count = request_store_->RequestCount();
-  for (int32_t request_id = 0; request_id < request_count; ++request_id) {
-    auto* request_entry = request_store_->MutRequestEntry(request_id);
-    if (request_entry->HasRankOnThisNode()) {
-      job_id2request_ids[request_entry->job_id()].push_back(request_id);
-    }
-  }
-  const auto& GetRequestDesc = [&](int32_t request_id) -> const RequestDesc& {
-    return request_store_->MutRequestEntry(request_id)->desc();
-  };
-  request_id2group_id_.resize(request_store_->RequestCount());
-  request_id2index_in_group_.resize(request_store_->RequestCount());
-  for (auto& job_id7request_ids : job_id2request_ids) {
-    const int64_t job_id = job_id7request_ids.first;
-    auto& request_ids = job_id7request_ids.second;
-    SortRequestIdsByOrder(request_store_.get(), &request_ids);
-    CHECK(std::adjacent_find(request_ids.begin(), request_ids.end(),
-                             [&](int32_t a, int32_t b) {
-                               return GetRequestDesc(a).dependency_depth()
-                                      > GetRequestDesc(b).dependency_depth();
-                             })
-          == request_ids.end());
-    executor_->GroupRequests(request_ids, [&](std::vector<int32_t>&& group) {
-      const int32_t group_id = group_id2group_state_.size();
-      group_id2group_state_.emplace_back(group.size());
-      job_id2group_ids_[job_id].push_back(group_id);
-      for (int32_t idx_in_group = 0; idx_in_group < group.size(); ++idx_in_group) {
-        const int32_t request_id = group.at(idx_in_group);
-        request_id2group_id_.at(request_id) = group_id;
-        request_id2index_in_group_.at(request_id) = idx_in_group;
-      }
-      group_id2request_ids_.push_back(group);
-    });
-  }
-  DumpSummary();
 }
 
-void StaticGroupCoordinator::AddRequest(int32_t request_id) {
-  const int64_t job_id = request_store_->MutRequestEntry(request_id)->job_id();
+void StaticGroupCoordinator::AddPlan(const std::vector<int64_t>& job_ids) {
+  const auto& GetRequestDesc = [&](int64_t job_id, int32_t request_id) -> const RequestDesc& {
+    return request_store_->MutRequestEntry(job_id, request_id)->desc();
+  };
+
+  for (const auto& job_id : job_ids) {
+    std::vector<int32_t> request_ids;
+    const int32_t request_count = request_store_->RequestCount4Job(job_id);
+    for (int64_t request_id = 0; request_id < request_count; ++request_id) {
+      auto* request_entry = request_store_->MutRequestEntry(job_id, request_id);
+      if (request_entry->HasRankOnThisNode()) { request_ids.push_back(request_id); }
+    }
+    SortRequestIdsByOrder(job_id, request_store_.get(), &request_ids);
+    CHECK(std::adjacent_find(request_ids.begin(), request_ids.end(),
+                             [&](int32_t a, int32_t b) {
+                               return GetRequestDesc(job_id, a).dependency_depth()
+                                      > GetRequestDesc(job_id, b).dependency_depth();
+                             })
+          == request_ids.end());
+    std::vector<int32_t>& group_ids = job_id2group_ids_[job_id];
+    std::vector<GroupState>& group_states = job_id2group_states_[job_id];
+    std::vector<int32_t>& request_id2group_id = job_id2request_id2group_id_[job_id];
+    std::vector<int32_t>& request_id2index_in_group = job_id2request_id2index_in_group_[job_id];
+    std::vector<std::vector<int32_t>>& group_id2request_ids = job_id2group_id2request_ids_[job_id];
+    request_id2group_id.resize(request_count);
+    request_id2index_in_group.resize(request_count);
+    executor_->GroupRequests(
+        job_id, request_ids, [&](int64_t job_id, std::vector<int32_t>&& group) {
+          const int32_t group_id = group_states.size();
+          group_states.emplace_back(group.size());
+          group_ids.push_back(group_id);
+          for (int32_t idx_in_group = 0; idx_in_group < group.size(); ++idx_in_group) {
+            const int32_t request_id = group.at(idx_in_group);
+            request_id2group_id.at(request_id) = group_id;
+            request_id2index_in_group.at(request_id) = idx_in_group;
+          }
+          group_id2request_ids.push_back(group);
+        });
+    if (group_states.size() != 0) { DumpSummary(job_id); }
+  }
+  DebugLog();
+}
+
+void StaticGroupCoordinator::AddRequest(int64_t job_id, int32_t request_id) {
   std::unique_lock<std::mutex> lock(mutex_);
   if (current_job_id_ == -1) {
     current_job_id_ = job_id;
@@ -92,16 +97,28 @@ void StaticGroupCoordinator::AddRequest(int32_t request_id) {
   } else {
     CHECK_EQ(current_job_id_, job_id);
   }
+  const auto& request_id2group_id_it = job_id2request_id2group_id_.find(job_id);
+  CHECK(request_id2group_id_it != job_id2request_id2group_id_.end());
+  const std::vector<int32_t>& request_id2group_id = request_id2group_id_it->second;
+  auto group_states_it = job_id2group_states_.find(job_id);
+  CHECK(group_states_it != job_id2group_states_.end());
+  std::vector<GroupState>& group_states = group_states_it->second;
+  const auto& request_id2index_in_group_it = job_id2request_id2index_in_group_.find(job_id);
+  CHECK(request_id2index_in_group_it != job_id2request_id2index_in_group_.end());
+  const std::vector<int32_t>& request_id2index_in_group = request_id2index_in_group_it->second;
+  auto group_id2request_ids_it = job_id2group_id2request_ids_.find(job_id);
+  CHECK(group_id2request_ids_it != job_id2group_id2request_ids_.end());
+  const std::vector<std::vector<int32_t>>& group_id2request_ids = group_id2request_ids_it->second;
 
-  group_id2group_state_.at(request_id2group_id_.at(request_id))
-      .AddReadyRequest(request_id2index_in_group_.at(request_id));
+  group_states.at(request_id2group_id.at(request_id))
+      .AddReadyRequest(request_id2index_in_group.at(request_id));
   const std::vector<int32_t>& group_ids = job_id2group_ids_.at(current_job_id_);
   int64_t num_launched_groups = 0;
   while (true) {
     const int32_t group_id = group_ids.at(current_group_idx_in_job_);
-    auto& group_state = group_id2group_state_.at(group_id);
+    auto& group_state = group_states.at(group_id);
     if (group_state.IsReady()) {
-      executor_->ExecuteGroupedRequests(group_id2request_ids_.at(group_id));
+      executor_->ExecuteGroupedRequests(current_job_id_, group_id2request_ids.at(group_id));
       group_state.Reset();
       current_group_idx_in_job_ = (current_group_idx_in_job_ + 1) % group_ids.size();
       num_launched_groups += 1;
@@ -115,13 +132,15 @@ void StaticGroupCoordinator::AddRequest(int32_t request_id) {
   }
 }
 
-void StaticGroupCoordinator::DumpSummary() const {
+void StaticGroupCoordinator::DumpSummary(const int64_t job_id) const {
   if (!Global<ResourceDesc, ForSession>::Get()->enable_debug_mode()) { return; }
-  auto group_ls = TeePersistentLogStream::Create("boxing/collective/group");
-  for (int32_t group_id = 0; group_id < group_id2group_state_.size(); ++group_id) {
+  auto group_ls = TeePersistentLogStream::Create(StrCat("boxing/collective/job_", job_id));
+  const auto& group_id2request_ids_it = job_id2group_id2request_ids_.find(job_id);
+  CHECK(group_id2request_ids_it != job_id2group_id2request_ids_.end());
+  for (int32_t group_id = 0; group_id < job_id2group_states_.at(job_id).size(); ++group_id) {
     group_ls << "group id: " << std::to_string(group_id) << "\n";
-    for (const int32_t request_id : group_id2request_ids_.at(group_id)) {
-      group_ls->Write(request_store_->MutRequestEntry(request_id)->desc());
+    for (const int32_t request_id : group_id2request_ids_it->second.at(group_id)) {
+      group_ls->Write(request_store_->MutRequestEntry(job_id, request_id)->desc());
     }
   }
 }
