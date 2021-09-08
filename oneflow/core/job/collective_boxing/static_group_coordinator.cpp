@@ -124,10 +124,9 @@ void StaticGroupCoordinator::AddRequest(int64_t job_id, int32_t request_id) {
       .AddReadyRequest(request_id2index_in_group.at(request_id));
   int64_t num_launched_groups = 0;
   while (true) {
-    const int64_t group_id = current_group_idx_in_job_;
-    auto& group_state = group_states.at(group_id);
+    auto& group_state = group_states.at(current_group_idx_in_job_);
     if (group_state.IsReady()) {
-      executor_->ExecuteGroupedRequests(current_job_id_, group_id2request_ids.at(group_id));
+      executor_->ExecuteGroupedRequests(current_job_id_, group_id2request_ids.at(current_group_idx_in_job_));
       group_state.Reset();
       current_group_idx_in_job_ = (current_group_idx_in_job_ + 1) % group_states.size();
       num_launched_groups += 1;
