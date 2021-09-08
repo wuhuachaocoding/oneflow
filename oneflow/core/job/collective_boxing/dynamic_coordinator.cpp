@@ -115,6 +115,10 @@ void DynamicCoordinator::AddPlan(const std::vector<int64_t>& job_ids) {
   // TODO
 }
 
+void DynamicCoordinator::DeletePlan(const std::vector<int64_t>& job_ids) {
+  // TODO
+}
+
 void DynamicCoordinator::Impl::AddRequest(int64_t job_id, int32_t request_id) {
   RequestEntry* request_entry = request_store->MutRequestEntry(request_id);
   if (request_entry->NodeCount() == 1) {

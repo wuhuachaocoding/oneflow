@@ -104,8 +104,7 @@ Runtime::~Runtime() {
     Global<RuntimeCtx>::Get()->WaitUntilCntEqualZero(GetRunningActorCountKeyByJobId(pair.first));
   }
   OF_SESSION_BARRIER();
-  Global<boxing::collective::Scheduler>::Get()->DeletePlan(
-      collective_boxing_executor_plan_token_);
+  Global<boxing::collective::Scheduler>::Get()->DeletePlan(collective_boxing_executor_plan_token_);
 }
 
 }  // namespace oneflow

@@ -16,7 +16,7 @@ limitations under the License.
 #include "oneflow/core/job/collective_boxing/request_store.h"
 #include "oneflow/core/job/plan.pb.h"
 #include "oneflow/core/common/maybe.h"
-#include "oneflow/core/job/machine_context.h"
+#include "oneflow/core/control/global_process_ctx.h"
 #include "oneflow/core/job/global_for.h"
 #include "oneflow/core/common/shape.h"
 #include "oneflow/core/common/data_type.h"
@@ -31,7 +31,7 @@ RequestEntry::RequestEntry(int64_t job_id, const RequestDesc& desc) : job_id_(jo
   std::set<int64_t> node_ids;
   for (int64_t global_rank = 0; global_rank < desc.device_set().device().size(); ++global_rank) {
     const DeviceDesc& device = desc.device_set().device(global_rank);
-    if (device.machine_id() == Global<MachineCtx>::Get()->this_machine_id()) {
+    if (device.machine_id() == GlobalProcessCtx::Rank()) {
       local_device_vec_.push_back(device);
       global_rank2local_rank_.emplace(global_rank, local_rank2global_rank_.size());
       local_rank2global_rank_.push_back(global_rank);
@@ -97,6 +97,19 @@ void RequestStore::AddPlan(const CollectiveBoxingPlan& collective_boxing_plan) {
       if (entry->NodeCount() > 1) { max_multi_node_request_id = i + 1; }
     }
     CHECK(job_id2max_multi_node_request_id_.emplace(job_id, max_multi_node_request_id).second);
+  }
+}
+
+void RequestStore::DeletePlan(const std::vector<int64_t>& job_ids) {
+  for (const auto& job_id : job_ids) {
+    const auto& it = job_id2request_entry_vec_.find(job_id);
+    CHECK(it != job_id2request_entry_vec_.end());
+    const auto& request_entry_vec = it->second;
+    for (const auto& request_entry : request_entry_vec) {
+      name2job_id7request_id_.erase(request_entry->desc().op_desc().name());
+    }
+    job_id2request_entry_vec_.erase(job_id);
+    job_id2max_multi_node_request_id_.erase(job_id);
   }
 }
 

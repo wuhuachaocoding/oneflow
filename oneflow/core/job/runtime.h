@@ -19,7 +19,7 @@ limitations under the License.
 #include "oneflow/core/job/job_desc.h"
 #include "oneflow/core/job/plan.pb.h"
 #include "oneflow/core/register/blob.h"
-#include "oneflow/core/job/collective_boxing_executor.h"
+#include "oneflow/core/job/collective_boxing/scheduler.h"
 
 namespace oneflow {
 

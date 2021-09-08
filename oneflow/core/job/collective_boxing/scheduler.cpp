@@ -35,7 +35,7 @@ namespace collective {
 
 class RequestHandle final {
  public:
-  OF_DISALLOW_COPY_AND_MOVE(RequestHandle)
+  OF_DISALLOW_COPY_AND_MOVE(RequestHandle);
   RequestHandle(int64_t job_id, int32_t request_id, int32_t local_rank)
       : job_id_(job_id), request_id_(request_id), local_rank_(local_rank) {}
   ~RequestHandle() = default;
@@ -59,6 +59,7 @@ class ExecutorImpl : public Executor {
 
   void Init(std::shared_ptr<RequestStore> request_store) override;
   void AddPlan(const std::vector<int64_t>& job_ids) override;
+  void DeletePlan(const std::vector<int64_t>& job_ids) override;
   void GroupRequests(const int64_t job_id, const std::vector<int32_t>& request_ids,
                      const std::function<void(int64_t, std::vector<int32_t>&&)>& Handler) override;
   void ExecuteGroupedRequests(const int64_t job_id,
@@ -85,6 +86,10 @@ void ExecutorImpl::Init(std::shared_ptr<RequestStore> request_store) {
 
 void ExecutorImpl::AddPlan(const std::vector<int64_t>& job_ids) {
   backends_.at(Backend::kBackendNCCL)->AddPlan(job_ids);
+}
+
+void ExecutorImpl::DeletePlan(const std::vector<int64_t>& job_ids) {
+  backends_.at(Backend::kBackendNCCL)->DeletePlan(job_ids);
 }
 
 void ExecutorImpl::GroupRequests(
@@ -187,6 +192,16 @@ std::shared_ptr<const CollectiveBoxingExecutorPlanToken> Scheduler::AddPlan(cons
   impl_->executor->AddPlan(job_ids);
   impl_->coordinator->AddPlan(job_ids);
   return std::make_shared<CollectiveBoxingExecutorPlanToken>(job_ids);
+}
+
+void Scheduler::DeletePlan(
+    const std::shared_ptr<const CollectiveBoxingExecutorPlanToken> plan_token) {
+  const std::vector<int64_t>& job_ids = plan_token->job_ids();
+  impl_->coordinator->DeletePlan(job_ids);
+  impl_->executor->DeletePlan(job_ids);
+  impl_->request_store->DeletePlan(job_ids);
+  LOG(INFO) << "Scheduler DeletePlan";
+  impl_->request_store->DebugLog();
 }
 
 Scheduler::Scheduler() { impl_.reset(new Impl()); }

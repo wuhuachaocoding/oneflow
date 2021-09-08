@@ -19,7 +19,7 @@ import oneflow._oneflow_internal
 import oneflow.framework.hob as hob
 import oneflow.framework.session_context as session_ctx
 import oneflow.support.enable_if as enable_if
-
+from abc import ABC, abstractmethod
 
 def api_load_library(val: str) -> None:
     """Load necessary library for job
@@ -304,6 +304,38 @@ def num_callback_threads(val):
     sess = session_ctx.GetDefaultSession()
     assert type(val) is int
     sess.config_proto.resource.collective_boxing_conf.num_callback_threads = val
+
+
+class CollectiveBoxingCoordinator(ABC):
+    @abstractmethod
+    def SetFieldsInCollectiveBoxingConf(self, conf) -> None:
+        pass
+
+
+class StaticGroupCoordinator(CollectiveBoxingCoordinator):
+    def SetFieldsInCollectiveBoxingConf(self, conf) -> None:
+        conf.static_group_coordinator_conf.SetInParent()
+
+
+class DynamicCoordinator(CollectiveBoxingCoordinator):
+    def __init__(self, cycle_time_ms: float = 1):
+        self.cycle_time_ms = cycle_time_ms
+
+    def SetFieldsInCollectiveBoxingConf(self, conf) -> None:
+        conf.dynamic_coordinator_conf.SetInParent()
+        conf.dynamic_coordinator_conf.cycle_time_ms = self.cycle_time_ms
+
+
+def api_coordinator(coordinator: CollectiveBoxingCoordinator) -> None:
+    return enable_if.unique([set_coordinator, do_nothing])(coordinator)
+
+
+@enable_if.condition(hob.in_normal_mode & ~hob.session_initialized)
+def set_coordinator(coordinator):
+    sess = session_ctx.GetDefaultSession()
+    coordinator.SetFieldsInCollectiveBoxingConf(
+        sess.config_proto.resource.collective_boxing_conf
+    )
 
 
 def api_enable_tensor_float_32_compute(val: bool = True) -> None:

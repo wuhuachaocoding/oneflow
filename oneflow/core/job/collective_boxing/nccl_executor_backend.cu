@@ -18,8 +18,8 @@ limitations under the License.
 #include "oneflow/core/device/nccl_util.h"
 #include "oneflow/core/graph/boxing/collective_boxing_util.h"
 #include "oneflow/core/job/resource_desc.h"
-#include "oneflow/core/job/machine_context.h"
 #include "oneflow/core/control/ctrl_client.h"
+#include "oneflow/core/control/global_process_ctx.h"
 #include "oneflow/core/kernel/batch_memcpy_kernel_util.h"
 #include "oneflow/core/job/global_for.h"
 #include "oneflow/core/thread/thread_pool.h"
@@ -99,7 +99,7 @@ void MultiCopy(cudaStream_t stream, const MultiCopyParams& multi_params) {
   if (multi_params.count <= 0) { return; }
   CHECK_LE(multi_params.count, kMultiCopyParamsMaxSize);
   int64_t max_count = multi_params.params[0].count;
-  for (int64_t i = i; i < multi_params.count; ++i) {
+  for (int64_t i = 0; i < multi_params.count; ++i) {
     max_count = std::max(max_count, multi_params.params[i].count);
   }
   MultiCopyGpu<<<BlocksNum4ThreadsNum(max_count), kCudaThreadsNumPerBlock, 0, stream>>>(
@@ -163,7 +163,7 @@ class CommGroup final {
 
   void InitGroup(const DeviceSet& device_set, const std::string& unique_name) {
     CudaCurrentDeviceGuard guard;
-    const int64_t this_machine_id = Global<MachineCtx>::Get()->this_machine_id();
+    const int64_t this_machine_id = GlobalProcessCtx::Rank();
     global_rank_count_ = device_set.device_size();
     std::vector<int32_t> local_ranks;
     for (int32_t i = 0; i < global_rank_count_; ++i) {
@@ -631,6 +631,10 @@ void NcclExecutorBackend::AddPlan(const std::vector<int64_t>& job_ids) {
   CudaCurrentDeviceGuard guard;
   impl_->InitCommGroup(job_ids);
   impl_->InitRequestIdCommGroupIndex(job_ids);
+}
+
+void NcclExecutorBackend::DeletePlan(const std::vector<int64_t>& job_ids) {
+  // TODO
 }
 
 void NcclExecutorBackend::GroupRequests(

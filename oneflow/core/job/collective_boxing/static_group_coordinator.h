@@ -38,6 +38,7 @@ class StaticGroupCoordinator : public Coordinator {
   void Init(std::shared_ptr<RequestStore> request_store,
             std::shared_ptr<Executor> executor) override;
   void AddPlan(const std::vector<int64_t>& job_ids) override;
+  void DeletePlan(const std::vector<int64_t>& job_ids) override;
   void AddRequest(int64_t job_id, int32_t request_id) override;
   void DebugLog() {
     for (const auto& pair : job_id2group_ids_) {

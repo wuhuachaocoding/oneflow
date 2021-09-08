@@ -86,6 +86,21 @@ void StaticGroupCoordinator::AddPlan(const std::vector<int64_t>& job_ids) {
         });
     if (group_states.size() != 0) { DumpSummary(job_id); }
   }
+  LOG(INFO) << "after AddPlan";
+  DebugLog();
+}
+
+void StaticGroupCoordinator::DeletePlan(const std::vector<int64_t>& job_ids) {
+  // TODO job_id2group_ids_ job_id2request_id2group_id_ job_id2request_id2index_in_group_
+  // job_id2group_id2request_ids_ job_id2group_states_
+  for (const auto& job_id : job_ids) {
+    job_id2group_ids_.erase(job_id);
+    job_id2request_id2group_id_.erase(job_id);
+    job_id2request_id2index_in_group_.erase(job_id);
+    job_id2group_id2request_ids_.erase(job_id);
+    job_id2group_states_.erase(job_id);
+  }
+  LOG(INFO) << "after DeletePlan";
   DebugLog();
 }
 

@@ -37,6 +37,7 @@ class Coordinator {
   virtual void Init(std::shared_ptr<RequestStore> request_store,
                     std::shared_ptr<Executor> executor) = 0;
   virtual void AddPlan(const std::vector<int64_t>& job_ids) = 0;
+  virtual void DeletePlan(const std::vector<int64_t>& job_ids) = 0;
   virtual void AddRequest(int64_t job_id, int32_t request_id) = 0;
 };
 

@@ -71,7 +71,8 @@ class RequestEntry final {
   int64_t size_in_bytes_;
   Symbol<DeviceSet> device_set_symbol_;
 
-  struct alignas(64) State {
+  // struct alignas(64) State {
+  struct State {
     std::vector<std::shared_ptr<const RuntimeRequestInfo>> runtime_request_info_vec;
     int32_t runtime_request_count;
     std::mutex mutex;
@@ -87,6 +88,7 @@ class RequestStore {
   ~RequestStore() = default;
 
   void AddPlan(const CollectiveBoxingPlan& collective_boxing_plan);
+  void DeletePlan(const std::vector<int64_t>& job_ids);
 
   RequestEntry* MutRequestEntry(int64_t job_id, int32_t request_id) {
     return job_id2request_entry_vec_.at(job_id).at(request_id).get();
