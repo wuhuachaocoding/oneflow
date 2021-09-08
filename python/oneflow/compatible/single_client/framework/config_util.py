@@ -21,6 +21,7 @@ from oneflow.compatible.single_client.framework import session_context as sessio
 from oneflow.compatible.single_client.support import enable_if as enable_if
 from abc import ABC, abstractmethod
 
+
 def api_load_library(val: str) -> None:
     """Load necessary library for job
 

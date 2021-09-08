@@ -41,12 +41,10 @@ class StaticGroupCoordinator : public Coordinator {
   void DeletePlan(const std::vector<int64_t>& job_ids) override;
   void AddRequest(int64_t job_id, int32_t request_id) override;
   void DebugLog() {
-    for (const auto& pair : job_id2group_ids_) {
+    for (const auto& pair : job_id2request_id2group_id_) {
       const int64_t job_id = pair.first;
-      LOG(INFO) << "job_id2group_ids_ " << job_id;
-      for (const auto& group_id : pair.second) { LOG(INFO) << "group id:" << group_id; }
       LOG(INFO) << "job_id2request_id2group_id_ " << job_id;
-      for (const auto& request_id2group_id : job_id2request_id2group_id_.at(job_id)) {
+      for (const auto& request_id2group_id : pair.second) {
         LOG(INFO) << "request_id2group_id :" << request_id2group_id;
       }
       LOG(INFO) << "job_id2request_id2index_in_group_ " << job_id;
@@ -65,7 +63,6 @@ class StaticGroupCoordinator : public Coordinator {
 
   std::shared_ptr<RequestStore> request_store_;
   std::shared_ptr<Executor> executor_;
-  HashMap<int64_t, std::vector<int32_t>> job_id2group_ids_;
   HashMap<int64_t, std::vector<int32_t>> job_id2request_id2group_id_;
   HashMap<int64_t, std::vector<int32_t>> job_id2request_id2index_in_group_;
   HashMap<int64_t, std::vector<std::vector<int32_t>>> job_id2group_id2request_ids_;

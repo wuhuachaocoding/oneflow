@@ -27,7 +27,7 @@ namespace boxing {
 
 namespace collective {
 
-RequestEntry::RequestEntry(int64_t job_id, const RequestDesc& desc) : job_id_(job_id), desc_(desc) {
+RequestEntry::RequestEntry(const RequestDesc& desc) : desc_(desc) {
   std::set<int64_t> node_ids;
   for (int64_t global_rank = 0; global_rank < desc.device_set().device().size(); ++global_rank) {
     const DeviceDesc& device = desc.device_set().device(global_rank);
@@ -80,7 +80,7 @@ void RequestStore::AddPlan(const CollectiveBoxingPlan& collective_boxing_plan) {
         job_id2request_entry_vec_[job_id];
     CHECK_EQ(request_entry_vec.size(), 0);
     for (const RequestDesc& desc : request_set.request()) {
-      request_entry_vec.emplace_back(std::make_unique<RequestEntry>(job_id, desc));
+      request_entry_vec.emplace_back(std::make_unique<RequestEntry>(desc));
     }
     std::sort(request_entry_vec.begin(), request_entry_vec.end(),
               [](const std::unique_ptr<RequestEntry>& a, const std::unique_ptr<RequestEntry>& b) {

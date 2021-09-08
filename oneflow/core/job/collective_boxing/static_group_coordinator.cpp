@@ -65,7 +65,6 @@ void StaticGroupCoordinator::AddPlan(const std::vector<int64_t>& job_ids) {
                                       > GetRequestDesc(job_id, b).dependency_depth();
                              })
           == request_ids.end());
-    std::vector<int32_t>& group_ids = job_id2group_ids_[job_id];
     std::vector<GroupState>& group_states = job_id2group_states_[job_id];
     std::vector<int32_t>& request_id2group_id = job_id2request_id2group_id_[job_id];
     std::vector<int32_t>& request_id2index_in_group = job_id2request_id2index_in_group_[job_id];
@@ -76,7 +75,6 @@ void StaticGroupCoordinator::AddPlan(const std::vector<int64_t>& job_ids) {
         job_id, request_ids, [&](int64_t job_id, std::vector<int32_t>&& group) {
           const int32_t group_id = group_states.size();
           group_states.emplace_back(group.size());
-          group_ids.push_back(group_id);
           for (int32_t idx_in_group = 0; idx_in_group < group.size(); ++idx_in_group) {
             const int32_t request_id = group.at(idx_in_group);
             request_id2group_id.at(request_id) = group_id;
@@ -91,10 +89,7 @@ void StaticGroupCoordinator::AddPlan(const std::vector<int64_t>& job_ids) {
 }
 
 void StaticGroupCoordinator::DeletePlan(const std::vector<int64_t>& job_ids) {
-  // TODO job_id2group_ids_ job_id2request_id2group_id_ job_id2request_id2index_in_group_
-  // job_id2group_id2request_ids_ job_id2group_states_
   for (const auto& job_id : job_ids) {
-    job_id2group_ids_.erase(job_id);
     job_id2request_id2group_id_.erase(job_id);
     job_id2request_id2index_in_group_.erase(job_id);
     job_id2group_id2request_ids_.erase(job_id);
@@ -127,15 +122,14 @@ void StaticGroupCoordinator::AddRequest(int64_t job_id, int32_t request_id) {
 
   group_states.at(request_id2group_id.at(request_id))
       .AddReadyRequest(request_id2index_in_group.at(request_id));
-  const std::vector<int32_t>& group_ids = job_id2group_ids_.at(current_job_id_);
   int64_t num_launched_groups = 0;
   while (true) {
-    const int32_t group_id = group_ids.at(current_group_idx_in_job_);
+    const int64_t group_id = current_group_idx_in_job_;
     auto& group_state = group_states.at(group_id);
     if (group_state.IsReady()) {
       executor_->ExecuteGroupedRequests(current_job_id_, group_id2request_ids.at(group_id));
       group_state.Reset();
-      current_group_idx_in_job_ = (current_group_idx_in_job_ + 1) % group_ids.size();
+      current_group_idx_in_job_ = (current_group_idx_in_job_ + 1) % group_states.size();
       num_launched_groups += 1;
     } else {
       break;

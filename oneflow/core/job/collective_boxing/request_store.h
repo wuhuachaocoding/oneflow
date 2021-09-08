@@ -31,12 +31,11 @@ namespace collective {
 class RequestEntry final {
  public:
   OF_DISALLOW_COPY_AND_MOVE(RequestEntry);
-  RequestEntry(int64_t job_id, const RequestDesc& desc);
+  RequestEntry(const RequestDesc& desc);
   ~RequestEntry() = default;
 
   const RequestDesc& desc() const { return desc_; }
   int32_t LocalRankCount() const { return local_rank2global_rank_.size(); }
-  int64_t job_id() const { return job_id_; }
   int32_t LocalRankToGlobalRank(int32_t local_rank) const {
     return local_rank2global_rank_.at(local_rank);
   }
@@ -61,7 +60,6 @@ class RequestEntry final {
   const Symbol<DeviceSet>& device_set_symbol() const { return device_set_symbol_; }
 
  private:
-  int64_t job_id_;
   RequestDesc desc_;
   int32_t node_count_;
   std::vector<DeviceDesc> local_device_vec_;
