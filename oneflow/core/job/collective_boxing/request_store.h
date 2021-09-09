@@ -78,10 +78,6 @@ class RequestEntry final {
   State state_;
 };
 
-struct RequestEntryToken {
-  RequestEntry* request_entry;
-};
-
 class RequestStore {
  public:
   OF_DISALLOW_COPY_AND_MOVE(RequestStore);
@@ -92,7 +88,9 @@ class RequestStore {
   void DeletePlan(const std::vector<int64_t>& job_ids);
 
   RequestEntry* MutRequestEntry(int64_t job_id, int32_t request_id) {
-    return job_id2request_entry_vec_.at(job_id).at(request_id).get();
+    auto it = job_id2request_entry_vec_.find(job_id);
+    CHECK(it != job_id2request_entry_vec_.end());
+    return it->second.at(request_id).get();
   }
 
   int32_t RequestCount4Job(int64_t job_id) const {
@@ -106,41 +104,18 @@ class RequestStore {
     CHECK(it != job_id2max_multi_node_request_id_.end());
     return it->second;
   }
+
   std::pair<int64_t, int32_t> GetJobId7RequestIdByName(const std::string& name) const {
     return name2job_id7request_id_.at(name);
   }
 
-  void DebugLog() const {
-    for (const auto& job_id7request : job_id2request_entry_vec_) {
-      const int64_t job_id = job_id7request.first;
-      LOG(INFO) << "job id: " << job_id << " max_multi_node_request_id "
-                << job_id2max_multi_node_request_id_.at(job_id);
-      const std::vector<std::unique_ptr<RequestEntry>>& request_entry_vec = job_id7request.second;
-      for (int64_t i = 0; i < request_entry_vec.size(); ++i) {
-        LOG(INFO) << "request " << i << " desc:" << request_entry_vec.at(i)->desc().DebugString();
-      }
-    }
-    LOG(INFO) << " name2job_id7request_id_ ";
-    for (const auto& pair : name2job_id7request_id_) {
-      const std::string& name = pair.first;
-      LOG(INFO) << "name: " << name << " job_id " << pair.second.first << " request_id "
-                << pair.second.second;
-    }
-  }
+  void* CreateRequestEntryToken(int64_t job_id, int32_t request_id);
 
-  void* CreateRequestEntryToken(int64_t job_id, int32_t request_id) {
-    auto it = job_id2request_entry_vec_.find(job_id);
-    CHECK(it != job_id2request_entry_vec_.end());
-    return new RequestEntryToken{it->second.at(request_id).get()};
-  }
-  void DestroyRequestToken(void* token) {
-    auto request_entry_token = static_cast<RequestEntryToken*>(token);
-    delete request_entry_token;
-  }
+  void DestroyRequestToken(void* token);
 
-  RequestEntry* GetRequestEntry(void* token) {
-    return static_cast<RequestEntryToken*>(token)->request_entry;
-  }
+  RequestEntry* GetRequestEntry(void* token);
+
+  void DebugLog() const;
 
  private:
   HashMap<int64_t, std::vector<std::unique_ptr<RequestEntry>>> job_id2request_entry_vec_;

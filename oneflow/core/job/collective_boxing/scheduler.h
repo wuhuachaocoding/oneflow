@@ -28,11 +28,11 @@ namespace collective {
 
 class RequestHandle;
 
-class CollectiveBoxingExecutorPlanToken {
+class SchedulerPlanToken {
  public:
-  OF_DISALLOW_COPY_AND_MOVE(CollectiveBoxingExecutorPlanToken);
-  CollectiveBoxingExecutorPlanToken(const std::vector<int64_t>& job_ids) : job_ids_(job_ids) {}
-  ~CollectiveBoxingExecutorPlanToken() = default;
+  OF_DISALLOW_COPY_AND_MOVE(SchedulerPlanToken);
+  SchedulerPlanToken(const std::vector<int64_t>& job_ids) : job_ids_(job_ids) {}
+  ~SchedulerPlanToken() = default;
   const std::vector<int64_t>& job_ids() const { return job_ids_; }
 
  private:

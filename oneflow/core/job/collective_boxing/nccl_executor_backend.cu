@@ -438,7 +438,7 @@ struct NcclExecutorBackend::Impl {
     InitIsOpTypeFusionEnabled();
   }
   ~Impl() {
-    // request_id2stream_id2comm_group.clear();
+    job_id2request_id2stream_id2comm_group.clear();
     stream_id2device_id2stream_ctx.clear();
     device_set2stream_id2comm_group.clear();
   }
@@ -644,7 +644,7 @@ void NcclExecutorBackend::AddPlan(const std::vector<int64_t>& job_ids) {
 }
 
 void NcclExecutorBackend::DeletePlan(const std::vector<int64_t>& job_ids) {
-  // TODO
+  for (const auto& job_id : job_ids) { job_id2request_id2stream_id2comm_group.erase(job_id); }
 }
 
 void NcclExecutorBackend::GroupRequests(

@@ -47,12 +47,12 @@ class RequestHandle final {
   int32_t local_rank() const { return local_rank_; }
 
   void* request_entry_token() { return request_entry_token_; }
+
   void* request_token() { return request_token_; }
+
   void* executor_token() { return executor_token_; }
 
  private:
-  int64_t job_id_;
-  int32_t request_id_;
   int32_t local_rank_;
   void* request_entry_token_;
   void* request_token_;
