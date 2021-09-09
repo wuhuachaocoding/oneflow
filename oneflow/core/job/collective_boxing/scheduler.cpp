@@ -38,17 +38,11 @@ class RequestHandle final {
   OF_DISALLOW_COPY_AND_MOVE(RequestHandle);
   RequestHandle(int64_t job_id, int32_t request_id, int32_t local_rank, void* request_entry_token,
                 void* request_token, void* executor_token)
-      : job_id_(job_id),
-        request_id_(request_id),
-        local_rank_(local_rank),
+      : local_rank_(local_rank),
         request_entry_token_(request_entry_token),
         request_token_(request_token),
         executor_token_(executor_token) {}
   ~RequestHandle() = default;
-
-  int64_t job_id() const { return job_id_; }
-
-  int32_t request_id() const { return request_id_; }
 
   int32_t local_rank() const { return local_rank_; }
 
@@ -244,8 +238,6 @@ std::shared_ptr<RequestHandle> Scheduler::CreateRequestHandle(const RankDesc& ra
 
 void Scheduler::Schedule(const std::shared_ptr<RequestHandle>& handle,
                          std::shared_ptr<const RuntimeRequestInfo> request_info) {
-  const int32_t job_id = handle->job_id();
-  const int32_t request_id = handle->request_id();
   const int32_t local_rank = handle->local_rank();
   const bool ready = impl_->request_store->GetRequestEntry(handle->request_entry_token())
                          ->AddRuntimeRequest(local_rank, std::move(request_info));

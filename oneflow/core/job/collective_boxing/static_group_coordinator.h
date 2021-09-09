@@ -52,7 +52,7 @@ class StaticGroupCoordinator : public Coordinator {
                   << request_index.index_in_group;
       }
       for (const auto& request_ids : info.group_id2request_ids) {
-        LOG(INFO)<<"group ";
+        LOG(INFO) << "group ";
         for (const auto& request_id : request_ids) { LOG(INFO) << "request_ids :" << request_id; }
       }
       for (const auto& group_state : info.group_states) {
