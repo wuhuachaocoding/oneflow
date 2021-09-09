@@ -47,8 +47,8 @@ class Scheduler final {
   std::shared_ptr<RequestHandle> CreateRequestHandle(const RankDesc& rank_desc);
   void Schedule(const std::shared_ptr<RequestHandle>& handle,
                 std::shared_ptr<const RuntimeRequestInfo> request_info);
-  std::shared_ptr<const CollectiveBoxingExecutorPlanToken> AddPlan(const Plan& plan);
-  void DeletePlan(const std::shared_ptr<const CollectiveBoxingExecutorPlanToken> plan_token);
+  std::shared_ptr<const SchedulerPlanToken> AddPlan(const Plan& plan);
+  void DeletePlan(const std::shared_ptr<const SchedulerPlanToken> plan_token);
 
  private:
   friend class Global<Scheduler>;

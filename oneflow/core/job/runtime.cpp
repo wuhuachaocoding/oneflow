@@ -63,7 +63,7 @@ Runtime::Runtime(const Plan& plan, const HashMap<std::string, Blob*>& variable_o
     Global<RegstMgr>::Get()->AddPlan(plan, variable_op_name2eager_blob);
     Global<ThreadMgr>::Get()->AddPlan(plan);
     Global<RuntimeJobDescs>::Get()->AddPlan(plan);
-    collective_boxing_executor_plan_token_ =
+    collective_boxing_scheduler_plan_token_ =
         Global<boxing::collective::Scheduler>::Get()->AddPlan(plan);
   }
   std::vector<const TaskProto*> source_tasks;
@@ -104,7 +104,7 @@ Runtime::~Runtime() {
     Global<RuntimeCtx>::Get()->WaitUntilCntEqualZero(GetRunningActorCountKeyByJobId(pair.first));
   }
   OF_SESSION_BARRIER();
-  Global<boxing::collective::Scheduler>::Get()->DeletePlan(collective_boxing_executor_plan_token_);
+  Global<boxing::collective::Scheduler>::Get()->DeletePlan(collective_boxing_scheduler_plan_token_);
 }
 
 }  // namespace oneflow

@@ -36,7 +36,7 @@ namespace collective {
 class RequestHandle final {
  public:
   OF_DISALLOW_COPY_AND_MOVE(RequestHandle);
-  RequestHandle(int64_t job_id, int32_t request_id, int32_t local_rank, void* request_entry_token,
+  RequestHandle(int32_t local_rank, void* request_entry_token,
                 void* request_token, void* executor_token)
       : local_rank_(local_rank),
         request_entry_token_(request_entry_token),
@@ -193,7 +193,7 @@ Scheduler::Impl::Impl() {
   coordinator->Init(request_store, executor);
 }
 
-std::shared_ptr<const CollectiveBoxingExecutorPlanToken> Scheduler::AddPlan(const Plan& plan) {
+std::shared_ptr<const SchedulerPlanToken> Scheduler::AddPlan(const Plan& plan) {
   std::vector<int64_t> job_ids;
   for (const auto& job_id7request_set : plan.collective_boxing_plan().job_id2request_set()) {
     const int64_t job_id = job_id7request_set.first;
@@ -204,11 +204,11 @@ std::shared_ptr<const CollectiveBoxingExecutorPlanToken> Scheduler::AddPlan(cons
   impl_->request_store->DebugLog();
   impl_->executor->AddPlan(job_ids);
   impl_->coordinator->AddPlan(job_ids);
-  return std::make_shared<CollectiveBoxingExecutorPlanToken>(job_ids);
+  return std::make_shared<SchedulerPlanToken>(job_ids);
 }
 
 void Scheduler::DeletePlan(
-    const std::shared_ptr<const CollectiveBoxingExecutorPlanToken> plan_token) {
+    const std::shared_ptr<const SchedulerPlanToken> plan_token) {
   const std::vector<int64_t>& job_ids = plan_token->job_ids();
   impl_->coordinator->DeletePlan(job_ids);
   impl_->executor->DeletePlan(job_ids);
@@ -232,7 +232,7 @@ std::shared_ptr<RequestHandle> Scheduler::CreateRequestHandle(const RankDesc& ra
   void* request_entry_token = impl_->request_store->CreateRequestEntryToken(job_id, request_id);
   void* request_token = impl_->coordinator->CreateRequestToken(job_id, request_id);
   void* executor_token = impl_->executor->CreateExecutorToken(job_id, request_id);
-  return std::make_shared<RequestHandle>(job_id, request_id, local_rank, request_entry_token,
+  return std::make_shared<RequestHandle>(local_rank, request_entry_token,
                                          request_token, executor_token);
 }
 

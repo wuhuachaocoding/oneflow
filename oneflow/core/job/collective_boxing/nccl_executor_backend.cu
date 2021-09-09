@@ -475,7 +475,7 @@ struct NcclExecutorBackend::Impl {
     }
   }
 
-  void InitRequestIdCommGroupIndex(const std::vector<int64_t>& job_ids) {
+  void InitJobsRequestIdCommGroupIndex(const std::vector<int64_t>& job_ids) {
     for (const auto& job_id : job_ids) {
       std::vector<std::vector<CommGroup>*> request_id2stream_id2comm_group;
       request_id2stream_id2comm_group.resize(request_store->RequestCount4Job(job_id));
@@ -492,6 +492,12 @@ struct NcclExecutorBackend::Impl {
       }
       CHECK(job_id2request_id2stream_id2comm_group.emplace(job_id, request_id2stream_id2comm_group)
                 .second);
+    }
+  }
+
+  void DeleteJobsRequestIdCommGroupIndex(const std::vector<int64_t>& job_ids) {
+    for (const auto& job_id : job_ids) {
+      job_id2request_id2stream_id2comm_group.erase(job_id);
     }
   }
 
@@ -640,11 +646,11 @@ void NcclExecutorBackend::Init(std::shared_ptr<RequestStore> request_store) {
 void NcclExecutorBackend::AddPlan(const std::vector<int64_t>& job_ids) {
   CudaCurrentDeviceGuard guard;
   impl_->InitCommGroup(job_ids);
-  impl_->InitRequestIdCommGroupIndex(job_ids);
+  impl_->InitJobsRequestIdCommGroupIndex(job_ids);
 }
 
 void NcclExecutorBackend::DeletePlan(const std::vector<int64_t>& job_ids) {
-  for (const auto& job_id : job_ids) { job_id2request_id2stream_id2comm_group.erase(job_id); }
+  impl_->DeleteJobsRequestIdCommGroupIndex(job_ids);
 }
 
 void NcclExecutorBackend::GroupRequests(
