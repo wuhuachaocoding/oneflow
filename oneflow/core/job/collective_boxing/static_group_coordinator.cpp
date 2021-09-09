@@ -66,10 +66,10 @@ void StaticGroupCoordinator::AddPlan(const std::vector<int64_t>& job_ids) {
     StaticGroupRequestsInfo info;
     std::vector<int32_t> request_ids;
     const int32_t request_count = request_store_->RequestCount4Job(job_id);
-    for (int64_t request_id = 0; request_id < request_count; ++request_id) {
-      auto* request_entry = request_store_->MutRequestEntry(job_id, request_id);
-      if (request_entry->HasRankOnThisNode()) { request_ids.push_back(request_id); }
-    }
+    request_store_->ForEachMutRequestEntryInJob(
+        job_id, [&](RequestEntry* request_entry, int32_t i, int32_t request_id) {
+          if (request_entry->HasRankOnThisNode()) { request_ids.push_back(request_id); }
+        });
     SortRequestIdsByOrder(job_id, request_store_.get(), &request_ids);
     CHECK(std::adjacent_find(request_ids.begin(), request_ids.end(),
                              [&](int32_t a, int32_t b) {
@@ -147,9 +147,11 @@ void StaticGroupCoordinator::DumpSummary(const int64_t job_id) const {
   const auto& group_id2request_ids = it->second.group_id2request_ids;
   for (int32_t group_id = 0; group_id < group_id2request_ids.size(); ++group_id) {
     group_ls << "group id: " << std::to_string(group_id) << "\n";
-    for (const int32_t request_id : group_id2request_ids.at(group_id)) {
-      group_ls->Write(request_store_->MutRequestEntry(job_id, request_id)->desc());
-    }
+    request_store_->ForEachMutRequestEntryForIdsInJob(
+        job_id, group_id2request_ids.at(group_id),
+        [&](RequestEntry* request_entry, int32_t i, int32_t request_id) {
+          group_ls->Write(request_entry->desc());
+        });
   }
 }
 

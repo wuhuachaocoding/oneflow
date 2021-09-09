@@ -36,8 +36,8 @@ namespace collective {
 class RequestHandle final {
  public:
   OF_DISALLOW_COPY_AND_MOVE(RequestHandle);
-  RequestHandle(int32_t local_rank, void* request_entry_token,
-                void* request_token, void* executor_token)
+  RequestHandle(int32_t local_rank, void* request_entry_token, void* request_token,
+                void* executor_token)
       : local_rank_(local_rank),
         request_entry_token_(request_entry_token),
         request_token_(request_token),
@@ -128,21 +128,22 @@ void ExecutorImpl::GroupRequests(
     }
     group_buffer_.clear();
   };
-  for (const int32_t request_id : request_ids) {
-    if (!group_buffer_.empty()) {
-      const auto* cur_entry = request_store_->MutRequestEntry(job_id, request_id);
-      const auto* group_entry =
-          request_store_->MutRequestEntry(group_buffer_job_id_, group_buffer_.front());
-      if (job_id != group_buffer_job_id_
-          || cur_entry->desc().dependency_depth() != group_entry->desc().dependency_depth()
-          || cur_entry->desc().op_desc().backend() != group_entry->desc().op_desc().backend()
-          || cur_entry->device_set_symbol() != group_entry->device_set_symbol()) {
-        HandleGroup();
-      }
-    }
-    group_buffer_.push_back(request_id);
-    group_buffer_job_id_ = job_id;
-  }
+  request_store_->ForEachMutRequestEntryForIdsInJob(
+      job_id, request_ids, [&](RequestEntry* request_entry, int32_t i, int32_t request_id) {
+        if (!group_buffer_.empty()) {
+          const auto* cur_entry = request_entry;
+          const auto* group_entry =
+              request_store_->MutRequestEntry(group_buffer_job_id_, group_buffer_.front());
+          if (job_id != group_buffer_job_id_
+              || cur_entry->desc().dependency_depth() != group_entry->desc().dependency_depth()
+              || cur_entry->desc().op_desc().backend() != group_entry->desc().op_desc().backend()
+              || cur_entry->device_set_symbol() != group_entry->device_set_symbol()) {
+            HandleGroup();
+          }
+        }
+        group_buffer_.push_back(request_id);
+        group_buffer_job_id_ = job_id;
+      });
   HandleGroup();
 }
 
@@ -158,10 +159,10 @@ Backend ExecutorImpl::GetUniqueBackend(const int64_t job_id,
                                        const std::vector<int32_t>& request_ids) {
   const Backend backend =
       request_store_->MutRequestEntry(job_id, request_ids.front())->desc().op_desc().backend();
-  for (int32_t i = 1; i < request_ids.size(); ++i) {
-    CHECK_EQ(request_store_->MutRequestEntry(job_id, request_ids.at(i))->desc().op_desc().backend(),
-             backend);
-  }
+  request_store_->ForEachMutRequestEntryForIdsInJob(
+      job_id, request_ids, [&](RequestEntry* request_entry, int32_t i, int32_t request_id) {
+        CHECK_EQ(request_entry->desc().op_desc().backend(), backend);
+      });
   return backend;
 }
 
@@ -199,16 +200,13 @@ std::shared_ptr<const SchedulerPlanToken> Scheduler::AddPlan(const Plan& plan) {
     const int64_t job_id = job_id7request_set.first;
     job_ids.push_back(job_id);
   }
-  LOG(INFO) << "AddPlan " << plan.collective_boxing_plan().DebugString();
   impl_->request_store->AddPlan(plan.collective_boxing_plan());
-  impl_->request_store->DebugLog();
   impl_->executor->AddPlan(job_ids);
   impl_->coordinator->AddPlan(job_ids);
   return std::make_shared<SchedulerPlanToken>(job_ids);
 }
 
-void Scheduler::DeletePlan(
-    const std::shared_ptr<const SchedulerPlanToken> plan_token) {
+void Scheduler::DeletePlan(const std::shared_ptr<const SchedulerPlanToken> plan_token) {
   const std::vector<int64_t>& job_ids = plan_token->job_ids();
   impl_->coordinator->DeletePlan(job_ids);
   impl_->executor->DeletePlan(job_ids);
@@ -232,8 +230,8 @@ std::shared_ptr<RequestHandle> Scheduler::CreateRequestHandle(const RankDesc& ra
   void* request_entry_token = impl_->request_store->CreateRequestEntryToken(job_id, request_id);
   void* request_token = impl_->coordinator->CreateRequestToken(job_id, request_id);
   void* executor_token = impl_->executor->CreateExecutorToken(job_id, request_id);
-  return std::make_shared<RequestHandle>(local_rank, request_entry_token,
-                                         request_token, executor_token);
+  return std::make_shared<RequestHandle>(local_rank, request_entry_token, request_token,
+                                         executor_token);
 }
 
 void Scheduler::Schedule(const std::shared_ptr<RequestHandle>& handle,

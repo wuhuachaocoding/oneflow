@@ -93,6 +93,27 @@ class RequestStore {
     return it->second.at(request_id).get();
   }
 
+  void ForEachMutRequestEntryForIdsInJob(
+      int64_t job_id, const std::vector<int32_t>& request_ids,
+      const std::function<void(RequestEntry*, int32_t i, int32_t request_id)>& Handler) {
+    auto it = job_id2request_entry_vec_.find(job_id);
+    CHECK(it != job_id2request_entry_vec_.end());
+    for (int32_t i = 0; i < request_ids.size(); ++i) {
+      Handler(it->second.at(request_ids.at(i)).get(), i, request_ids.at(i));
+    }
+  }
+
+  void ForEachMutRequestEntryInJob(
+      int64_t job_id,
+      const std::function<void(RequestEntry*, int32_t i, int32_t request_id)>& Handler) {
+    auto it = job_id2request_entry_vec_.find(job_id);
+    CHECK(it != job_id2request_entry_vec_.end());
+    for (int32_t i = 0; i < it->second.size(); ++i) {
+      int32_t request_id = i;
+      Handler(it->second.at(request_id).get(), i, request_id);
+    }
+  }
+
   int32_t RequestCount4Job(int64_t job_id) const {
     const auto& it = job_id2request_entry_vec_.find(job_id);
     CHECK(it != job_id2request_entry_vec_.end());
