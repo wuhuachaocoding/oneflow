@@ -21,6 +21,20 @@ limitations under the License.
 
 namespace oneflow {
 
+class CollectiveBoxingKernelState final : public KernelState {
+  OF_DISALLOW_COPY_AND_MOVE(CollectiveBoxingKernelState);
+  explicit CollectiveBoxingKernelState(const RankDesc& rank_desc) {
+    request_handle_ = Global<Scheduler>::Get()->CreateRequestHandle(rank_desc);
+  }
+  ~CollectiveBoxingKernelState() override {
+    Global<Scheduler>::Get()->DestroyRequestHandle(request_handle_);
+  }
+  RequestHandle* request_handle() { return request_handle_; }
+
+ private:
+  RequestHandle* request_handle_;
+};
+
 using namespace boxing::collective;
 
 template<DeviceType device_type>
@@ -34,18 +48,19 @@ class CollectiveBoxingGenericKernel final : public Kernel {
   void VirtualKernelInit(KernelContext* ctx) override;
   bool IsKernelLaunchSynchronized() const override { return false; }
   void ForwardDataContent(KernelContext* ctx) const override;
-
-  std::shared_ptr<RequestHandle> request_handle_;
 };
 
 template<DeviceType device_type>
 void CollectiveBoxingGenericKernel<device_type>::VirtualKernelInit(KernelContext* ctx) {
   const RankDesc& rank_desc = this->op_conf().collective_boxing_generic_conf().rank_desc();
-  request_handle_ = Global<Scheduler>::Get()->CreateRequestHandle(rank_desc);
+  ctx->set_state(std::make_shared<CollectiveBoxingKernelState>(rank_desc);
 }
 
 template<DeviceType device_type>
 void CollectiveBoxingGenericKernel<device_type>::ForwardDataContent(KernelContext* ctx) const {
+  RequestHandle* request_handle =
+      CHECK_NOTNULL(dynamic_cast<CollectiveBoxingKernelState*>(ctx->state().get()))
+          ->request_handle();
   auto request = std::make_shared<RuntimeRequestInfo>();
   const RankDesc& rank_desc = this->op_conf().collective_boxing_generic_conf().rank_desc();
   const DataType data_type = rank_desc.op_desc().data_type();
@@ -72,7 +87,7 @@ void CollectiveBoxingGenericKernel<device_type>::ForwardDataContent(KernelContex
     CHECK(status.IsOk());
     checkpoint->SetDone();
   };
-  Global<Scheduler>::Get()->Schedule(request_handle_, request);
+  Global<Scheduler>::Get()->Schedule(request_handle, request);
 }
 
 ADD_DEVICE_TYPE_KERNEL_CREATOR(OperatorConf::kCollectiveBoxingGenericConf,

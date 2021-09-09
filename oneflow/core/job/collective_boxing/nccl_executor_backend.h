@@ -41,6 +41,8 @@ class NcclExecutorBackend : public ExecutorBackend {
   void ExecuteRequests(int64_t job_id, const std::vector<int32_t>& request_ids,
                        void* executor_token) override;
   void* CreateExecutorToken(int64_t job_id, int32_t request_id) override;
+  void DestroyExecutorToken(void* executor_token) override;
+
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };

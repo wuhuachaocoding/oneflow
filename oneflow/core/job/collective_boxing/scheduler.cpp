@@ -72,6 +72,7 @@ class ExecutorImpl : public Executor {
   void ExecuteGroupedRequests(const int64_t job_id, const std::vector<int32_t>& request_ids,
                               void* executor_token) override;
   void* CreateExecutorToken(int64_t job_id, int32_t request_id) override;
+  void DestroyExecutorToken(void* executor_token) override;
 
  private:
   Backend GetUniqueBackend(int64_t job_id, const std::vector<int32_t>& request_ids);
@@ -102,6 +103,10 @@ void ExecutorImpl::DeletePlan(const std::vector<int64_t>& job_ids) {
 
 void* ExecutorImpl::CreateExecutorToken(int64_t job_id, int32_t request_id) {
   return backends_.at(Backend::kBackendNCCL)->CreateExecutorToken(job_id, request_id);
+}
+
+void ExecutorImpl::DestroyExecutorToken(void* executor_token) {
+  backends_.at(Backend::kBackendNCCL)->DestroyExecutorToken(executor_token);
 }
 
 void ExecutorImpl::GroupRequests(
@@ -217,7 +222,7 @@ Scheduler::Scheduler() { impl_.reset(new Impl()); }
 
 Scheduler::~Scheduler() = default;
 
-std::shared_ptr<RequestHandle> Scheduler::CreateRequestHandle(const RankDesc& rank_desc) {
+RequestHandle* Scheduler::CreateRequestHandle(const RankDesc& rank_desc) {
   const std::pair<int64_t, int32_t> pair =
       impl_->request_store->GetJobId7RequestIdByName(rank_desc.op_desc().name());
   const int64_t job_id = pair.first;
@@ -228,8 +233,13 @@ std::shared_ptr<RequestHandle> Scheduler::CreateRequestHandle(const RankDesc& ra
   void* request_entry_token = impl_->request_store->CreateRequestEntryToken(job_id, request_id);
   void* request_token = impl_->coordinator->CreateRequestToken(job_id, request_id);
   void* executor_token = impl_->executor->CreateExecutorToken(job_id, request_id);
-  return std::make_shared<RequestHandle>(local_rank, request_entry_token, request_token,
-                                         executor_token);
+  return new RequestHandle(local_rank, request_entry_token, request_token, executor_token);
+}
+
+void Scheduler::DestroyRequestHandle(RequestHandle* handle) {
+  impl_->executor->DestroyExecutorToken(handle->executor_token());
+  impl_->coordinator->DestroyRequestToken(handle->request_token());
+  impl_->request_store->DestroyRequestEntryToken(handle->request_entry_token());
 }
 
 void Scheduler::Schedule(const std::shared_ptr<RequestHandle>& handle,

@@ -42,24 +42,6 @@ class StaticGroupCoordinator : public Coordinator {
   void AddRequest(void* request_token, void* executor_token) override;
   void* CreateRequestToken(int64_t job_id, int32_t request_id) override;
   void DestroyRequestToken(void* token);
-  void DebugLog() {
-    for (const auto& pair : job_id2static_group_requests_info_) {
-      const int64_t job_id = pair.first;
-      const StaticGroupRequestsInfo& info = pair.second;
-      LOG(INFO) << "job_id2static_group_requests_info_ " << job_id;
-      for (const auto& request_index : info.request_id2index) {
-        LOG(INFO) << "request_id2group_id :" << request_index.group_id << " "
-                  << request_index.index_in_group;
-      }
-      for (const auto& request_ids : info.group_id2request_ids) {
-        LOG(INFO) << "group ";
-        for (const auto& request_id : request_ids) { LOG(INFO) << "request_ids :" << request_id; }
-      }
-      for (const auto& group_state : info.group_states) {
-        LOG(INFO) << "group_state index2is_ready size :" << group_state.index2is_ready.size();
-      }
-    }
-  }
 
  private:
   void DumpSummary(const int64_t job_id) const;

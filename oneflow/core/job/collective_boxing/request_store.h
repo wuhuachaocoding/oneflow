@@ -132,7 +132,7 @@ class RequestStore {
 
   void* CreateRequestEntryToken(int64_t job_id, int32_t request_id);
 
-  void DestroyRequestToken(void* token);
+  void DestroyRequestEntryToken(void* token);
 
   RequestEntry* GetRequestEntry(void* token);
 

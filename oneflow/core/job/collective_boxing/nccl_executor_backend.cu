@@ -602,6 +602,11 @@ struct NcclExecutorBackend::Impl {
     return new ExecutorToken{&it->second};
   }
 
+  void DestroyExecutorToken(void* executor_token) {
+    ExecutorToken* token = static_cast<ExecutorToken*>(executor_token);
+    delete token;
+  }
+
   void ExecuteRequests(const int64_t job_id, const std::vector<int32_t>& request_ids,
                        void* executor_token) {
     const int32_t stream_id = NextStreamId();

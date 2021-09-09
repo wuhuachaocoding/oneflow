@@ -43,6 +43,7 @@ class ExecutorBackend {
   virtual void ExecuteRequests(int64_t job_id, const std::vector<int32_t>& request_ids,
                                void* executor_token) = 0;
   virtual void* CreateExecutorToken(int64_t job_id, int32_t request_id) = 0;
+  virtual void DestroyExecutorToken(void* executor_token) = 0;
 };
 
 }  // namespace collective

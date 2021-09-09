@@ -123,13 +123,13 @@ void* RequestStore::CreateRequestEntryToken(int64_t job_id, int32_t request_id) 
   return new RequestEntryToken{it->second.at(request_id).get()};
 }
 
-void RequestStore::DestroyRequestToken(void* token) {
-  auto request_entry_token = static_cast<RequestEntryToken*>(token);
-  delete request_entry_token;
+void RequestStore::DestroyRequestEntryToken(void* request_entry_token) {
+  auto token = static_cast<RequestEntryToken*>(request_entry_token);
+  delete token;
 }
 
-RequestEntry* RequestStore::GetRequestEntry(void* token) {
-  return static_cast<RequestEntryToken*>(token)->request_entry;
+RequestEntry* RequestStore::GetRequestEntry(void* request_entry_token) {
+  return static_cast<RequestEntryToken*>(request_entry_token)->request_entry;
 }
 
 }  // namespace collective

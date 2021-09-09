@@ -44,7 +44,8 @@ class Scheduler final {
   OF_DISALLOW_COPY_AND_MOVE(Scheduler);
   ~Scheduler();
 
-  std::shared_ptr<RequestHandle> CreateRequestHandle(const RankDesc& rank_desc);
+  RequestHandle* CreateRequestHandle(const RankDesc& rank_desc);
+  void DestroyRequestHandle(RequestHandle*);
   void Schedule(const std::shared_ptr<RequestHandle>& handle,
                 std::shared_ptr<const RuntimeRequestInfo> request_info);
   std::shared_ptr<const SchedulerPlanToken> AddPlan(const Plan& plan);

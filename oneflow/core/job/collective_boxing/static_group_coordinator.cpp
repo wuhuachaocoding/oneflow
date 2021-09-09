@@ -52,9 +52,9 @@ void* StaticGroupCoordinator::CreateRequestToken(int64_t job_id, int32_t request
   return new StaticGroupRequestsInfoToken{job_id, request_id, &it->second};
 }
 
-void StaticGroupCoordinator::DestroyRequestToken(void* token) {
-  auto request_token = static_cast<StaticGroupRequestsInfoToken*>(token);
-  delete request_token;
+void StaticGroupCoordinator::DestroyRequestToken(void* request_token) {
+  auto token = static_cast<StaticGroupRequestsInfoToken*>(request_token);
+  delete token;
 }
 
 void StaticGroupCoordinator::AddPlan(const std::vector<int64_t>& job_ids) {
