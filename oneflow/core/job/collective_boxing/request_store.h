@@ -69,7 +69,6 @@ class RequestEntry final {
   int64_t size_in_bytes_;
   Symbol<DeviceSet> device_set_symbol_;
 
-  // struct alignas(64) State {
   struct State {
     std::vector<std::shared_ptr<const RuntimeRequestInfo>> runtime_request_info_vec;
     int32_t runtime_request_count;
@@ -77,6 +76,10 @@ class RequestEntry final {
   };
 
   State state_;
+};
+
+struct RequestEntryToken {
+  RequestEntry* request_entry;
 };
 
 class RequestStore {
@@ -123,6 +126,20 @@ class RequestStore {
       LOG(INFO) << "name: " << name << " job_id " << pair.second.first << " request_id "
                 << pair.second.second;
     }
+  }
+
+  void* CreateRequestEntryToken(int64_t job_id, int32_t request_id) {
+    auto it = job_id2request_entry_vec_.find(job_id);
+    CHECK(it != job_id2request_entry_vec_.end());
+    return new RequestEntryToken{it->second.at(request_id).get()};
+  }
+  void DestroyRequestToken(void* token) {
+    auto request_entry_token = static_cast<RequestEntryToken*>(token);
+    delete request_entry_token;
+  }
+
+  RequestEntry* GetRequestEntry(void* token) {
+    return static_cast<RequestEntryToken*>(token)->request_entry;
   }
 
  private:

@@ -42,6 +42,7 @@ class DynamicCoordinator : public Coordinator {
   void AddPlan(const std::vector<int64_t>& job_ids) override;
   void DeletePlan(const std::vector<int64_t>& job_ids) override;
   void AddRequest(int64_t job_id, int32_t request_id) override;
+  void* CreateRequestToken(int64_t job_id, int32_t request_id) override;
 
   struct Impl;
   std::unique_ptr<Impl> impl_;

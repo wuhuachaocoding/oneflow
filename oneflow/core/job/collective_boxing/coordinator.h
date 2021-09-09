@@ -38,7 +38,8 @@ class Coordinator {
                     std::shared_ptr<Executor> executor) = 0;
   virtual void AddPlan(const std::vector<int64_t>& job_ids) = 0;
   virtual void DeletePlan(const std::vector<int64_t>& job_ids) = 0;
-  virtual void AddRequest(int64_t job_id, int32_t request_id) = 0;
+  virtual void AddRequest(void* request_token, void* executor_token) = 0;
+  virtual void* CreateRequestToken(int64_t job_id, int32_t request_id) = 0;
 };
 
 }  // namespace collective

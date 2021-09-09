@@ -39,20 +39,23 @@ class StaticGroupCoordinator : public Coordinator {
             std::shared_ptr<Executor> executor) override;
   void AddPlan(const std::vector<int64_t>& job_ids) override;
   void DeletePlan(const std::vector<int64_t>& job_ids) override;
-  void AddRequest(int64_t job_id, int32_t request_id) override;
+  void AddRequest(void* request_token, void* executor_token) override;
+  void* CreateRequestToken(int64_t job_id, int32_t request_id) override;
+  void DestroyRequestToken(void* token);
   void DebugLog() {
-    for (const auto& pair : job_id2request_id2group_id_) {
+    for (const auto& pair : job_id2static_group_requests_info_) {
       const int64_t job_id = pair.first;
-      LOG(INFO) << "job_id2request_id2group_id_ " << job_id;
-      for (const auto& request_id2group_id : pair.second) {
-        LOG(INFO) << "request_id2group_id :" << request_id2group_id;
+      const StaticGroupRequestsInfo& info = pair.second;
+      LOG(INFO) << "job_id2static_group_requests_info_ " << job_id;
+      for (const auto& request_index : info.request_id2index) {
+        LOG(INFO) << "request_id2group_id :" << request_index.group_id << " "
+                  << request_index.index_in_group;
       }
-      LOG(INFO) << "job_id2request_id2index_in_group_ " << job_id;
-      for (const auto& request_id2index_in_group : job_id2request_id2index_in_group_.at(job_id)) {
-        LOG(INFO) << "request_id2index_in_group :" << request_id2index_in_group;
+      for (const auto& request_ids : info.group_id2request_ids) {
+        LOG(INFO)<<"group ";
+        for (const auto& request_id : request_ids) { LOG(INFO) << "request_ids :" << request_id; }
       }
-      LOG(INFO) << "job_id2group_states_ " << job_id;
-      for (const auto& group_state : job_id2group_states_.at(job_id)) {
+      for (const auto& group_state : info.group_states) {
         LOG(INFO) << "group_state index2is_ready size :" << group_state.index2is_ready.size();
       }
     }
@@ -63,9 +66,6 @@ class StaticGroupCoordinator : public Coordinator {
 
   std::shared_ptr<RequestStore> request_store_;
   std::shared_ptr<Executor> executor_;
-  HashMap<int64_t, std::vector<int32_t>> job_id2request_id2group_id_;
-  HashMap<int64_t, std::vector<int32_t>> job_id2request_id2index_in_group_;
-  HashMap<int64_t, std::vector<std::vector<int32_t>>> job_id2group_id2request_ids_;
 
   struct GroupState {
     explicit GroupState(int32_t group_size) : index2is_ready(group_size), ready_request_count(0) {}
@@ -78,9 +78,27 @@ class StaticGroupCoordinator : public Coordinator {
     int32_t ready_request_count;
   };
   std::mutex mutex_;
-  HashMap<int64_t, std::vector<GroupState>> job_id2group_states_;
   int64_t current_job_id_ = -1;
   int64_t current_group_idx_in_job_ = -1;
+
+  struct RequestIndex {
+    int32_t group_id;
+    int32_t index_in_group;
+  };
+
+  struct StaticGroupRequestsInfo {
+    std::vector<RequestIndex> request_id2index;
+    std::vector<GroupState> group_states;
+    std::vector<std::vector<int32_t>> group_id2request_ids;
+  };
+
+  struct StaticGroupRequestsInfoToken {
+    int64_t job_id;
+    int32_t request_id;
+    StaticGroupRequestsInfo* info;
+  };
+
+  HashMap<int64_t, StaticGroupRequestsInfo> job_id2static_group_requests_info_;
 };
 
 }  // namespace collective

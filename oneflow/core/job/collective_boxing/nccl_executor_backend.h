@@ -38,8 +38,9 @@ class NcclExecutorBackend : public ExecutorBackend {
   void DeletePlan(const std::vector<int64_t>& job_ids) override;
   void GroupRequests(int64_t job_id, const std::vector<int32_t>& request_ids,
                      const std::function<void(int64_t, std::vector<int32_t>&&)>& Handler) override;
-  void ExecuteRequests(int64_t job_id, const std::vector<int32_t>& request_ids) override;
-
+  void ExecuteRequests(int64_t job_id, const std::vector<int32_t>& request_ids,
+                       void* executor_token) override;
+  void* CreateExecutorToken(int64_t job_id, int32_t request_id) override;
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };

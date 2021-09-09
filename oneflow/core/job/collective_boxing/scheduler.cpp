@@ -36,8 +36,14 @@ namespace collective {
 class RequestHandle final {
  public:
   OF_DISALLOW_COPY_AND_MOVE(RequestHandle);
-  RequestHandle(int64_t job_id, int32_t request_id, int32_t local_rank)
-      : job_id_(job_id), request_id_(request_id), local_rank_(local_rank) {}
+  RequestHandle(int64_t job_id, int32_t request_id, int32_t local_rank, void* request_entry_token,
+                void* request_token, void* executor_token)
+      : job_id_(job_id),
+        request_id_(request_id),
+        local_rank_(local_rank),
+        request_entry_token_(request_entry_token),
+        request_token_(request_token),
+        executor_token_(executor_token) {}
   ~RequestHandle() = default;
 
   int64_t job_id() const { return job_id_; }
@@ -46,10 +52,17 @@ class RequestHandle final {
 
   int32_t local_rank() const { return local_rank_; }
 
+  void* request_entry_token() { return request_entry_token_; }
+  void* request_token() { return request_token_; }
+  void* executor_token() { return executor_token_; }
+
  private:
   int64_t job_id_;
   int32_t request_id_;
   int32_t local_rank_;
+  void* request_entry_token_;
+  void* request_token_;
+  void* executor_token_;
 };
 
 class ExecutorImpl : public Executor {
@@ -62,8 +75,9 @@ class ExecutorImpl : public Executor {
   void DeletePlan(const std::vector<int64_t>& job_ids) override;
   void GroupRequests(const int64_t job_id, const std::vector<int32_t>& request_ids,
                      const std::function<void(int64_t, std::vector<int32_t>&&)>& Handler) override;
-  void ExecuteGroupedRequests(const int64_t job_id,
-                              const std::vector<int32_t>& request_ids) override;
+  void ExecuteGroupedRequests(const int64_t job_id, const std::vector<int32_t>& request_ids,
+                              void* executor_token) override;
+  void* CreateExecutorToken(int64_t job_id, int32_t request_id) override;
 
  private:
   Backend GetUniqueBackend(int64_t job_id, const std::vector<int32_t>& request_ids);
@@ -90,6 +104,10 @@ void ExecutorImpl::AddPlan(const std::vector<int64_t>& job_ids) {
 
 void ExecutorImpl::DeletePlan(const std::vector<int64_t>& job_ids) {
   backends_.at(Backend::kBackendNCCL)->DeletePlan(job_ids);
+}
+
+void* ExecutorImpl::CreateExecutorToken(int64_t job_id, int32_t request_id) {
+  return backends_.at(Backend::kBackendNCCL)->CreateExecutorToken(job_id, request_id);
 }
 
 void ExecutorImpl::GroupRequests(
@@ -135,10 +153,11 @@ void ExecutorImpl::GroupRequests(
 }
 
 void ExecutorImpl::ExecuteGroupedRequests(const int64_t job_id,
-                                          const std::vector<int32_t>& request_ids) {
+                                          const std::vector<int32_t>& request_ids,
+                                          void* executor_token) {
   if (request_ids.empty()) { return; }
   const Backend backend = GetUniqueBackend(job_id, request_ids);
-  backends_.at(backend)->ExecuteRequests(job_id, request_ids);
+  backends_.at(backend)->ExecuteRequests(job_id, request_ids, executor_token);
 }
 
 Backend ExecutorImpl::GetUniqueBackend(const int64_t job_id,
@@ -216,7 +235,11 @@ std::shared_ptr<RequestHandle> Scheduler::CreateRequestHandle(const RankDesc& ra
   auto* request_entry = impl_->request_store->MutRequestEntry(job_id, request_id);
   CHECK(rank_desc.op_desc() == request_entry->desc().op_desc());
   const int32_t local_rank = request_entry->GlobalRankToLocalRank(rank_desc.rank());
-  return std::make_shared<RequestHandle>(job_id, request_id, local_rank);
+  void* request_entry_token = impl_->request_store->CreateRequestEntryToken(job_id, request_id);
+  void* request_token = impl_->coordinator->CreateRequestToken(job_id, request_id);
+  void* executor_token = impl_->executor->CreateExecutorToken(job_id, request_id);
+  return std::make_shared<RequestHandle>(job_id, request_id, local_rank, request_entry_token,
+                                         request_token, executor_token);
 }
 
 void Scheduler::Schedule(const std::shared_ptr<RequestHandle>& handle,
@@ -224,9 +247,9 @@ void Scheduler::Schedule(const std::shared_ptr<RequestHandle>& handle,
   const int32_t job_id = handle->job_id();
   const int32_t request_id = handle->request_id();
   const int32_t local_rank = handle->local_rank();
-  const bool ready = impl_->request_store->MutRequestEntry(job_id, request_id)
+  const bool ready = impl_->request_store->GetRequestEntry(handle->request_entry_token())
                          ->AddRuntimeRequest(local_rank, std::move(request_info));
-  if (ready) { impl_->coordinator->AddRequest(job_id, request_id); }
+  if (ready) { impl_->coordinator->AddRequest(handle->request_token(), handle->executor_token()); }
 }
 
 }  // namespace collective
