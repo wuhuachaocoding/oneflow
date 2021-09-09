@@ -211,8 +211,6 @@ void Scheduler::DeletePlan(const std::shared_ptr<const SchedulerPlanToken> plan_
   impl_->coordinator->DeletePlan(job_ids);
   impl_->executor->DeletePlan(job_ids);
   impl_->request_store->DeletePlan(job_ids);
-  LOG(INFO) << "Scheduler DeletePlan";
-  impl_->request_store->DebugLog();
 }
 
 Scheduler::Scheduler() { impl_.reset(new Impl()); }

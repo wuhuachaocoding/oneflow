@@ -95,14 +95,10 @@ void StaticGroupCoordinator::AddPlan(const std::vector<int64_t>& job_ids) {
     CHECK(job_id2static_group_requests_info_.emplace(job_id, info).second);
     if (group_states.size() != 0) { DumpSummary(job_id); }
   }
-  LOG(INFO) << "after AddPlan";
-  DebugLog();
 }
 
 void StaticGroupCoordinator::DeletePlan(const std::vector<int64_t>& job_ids) {
   for (const auto& job_id : job_ids) { job_id2static_group_requests_info_.erase(job_id); }
-  LOG(INFO) << "after DeletePlan";
-  DebugLog();
 }
 
 void StaticGroupCoordinator::AddRequest(void* request_token, void* executor_token) {

@@ -136,8 +136,6 @@ class RequestStore {
 
   RequestEntry* GetRequestEntry(void* token);
 
-  void DebugLog() const;
-
  private:
   HashMap<int64_t, std::vector<std::unique_ptr<RequestEntry>>> job_id2request_entry_vec_;
   HashMap<int64_t, int32_t> job_id2max_multi_node_request_id_;

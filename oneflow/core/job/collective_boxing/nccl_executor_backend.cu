@@ -43,6 +43,7 @@ ncclRedOp_t GetNcclReduceOp(ReduceMethod reduce_method) {
     return ncclRedOp_t::ncclSum;
   } else {
     UNIMPLEMENTED();
+    return ncclRedOp_t{};
   }
 }
 

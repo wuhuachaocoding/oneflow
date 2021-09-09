@@ -132,24 +132,6 @@ RequestEntry* RequestStore::GetRequestEntry(void* token) {
   return static_cast<RequestEntryToken*>(token)->request_entry;
 }
 
-void RequestStore::DebugLog() const {
-  for (const auto& job_id7request : job_id2request_entry_vec_) {
-    const int64_t job_id = job_id7request.first;
-    LOG(INFO) << "job id: " << job_id << " max_multi_node_request_id "
-              << job_id2max_multi_node_request_id_.at(job_id);
-    const std::vector<std::unique_ptr<RequestEntry>>& request_entry_vec = job_id7request.second;
-    for (int64_t i = 0; i < request_entry_vec.size(); ++i) {
-      LOG(INFO) << "request " << i << " desc:" << request_entry_vec.at(i)->desc().DebugString();
-    }
-  }
-  LOG(INFO) << " name2job_id7request_id_ ";
-  for (const auto& pair : name2job_id7request_id_) {
-    const std::string& name = pair.first;
-    LOG(INFO) << "name: " << name << " job_id " << pair.second.first << " request_id "
-              << pair.second.second;
-  }
-}
-
 }  // namespace collective
 
 }  // namespace boxing
