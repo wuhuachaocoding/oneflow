@@ -522,8 +522,8 @@ struct NcclExecutorBackend::Impl {
     ExecutorToken* token = static_cast<ExecutorToken*>(executor_token);
     const auto request_id2stream_id2comm_group = token->request_id2stream_id2comm_group;
     const auto* stream_id2comm_group = request_id2stream_id2comm_group->at(request_ids.at(0));
-    for (int64_t request_id = 0; request_id < request_ids.size(); ++request_id) {
-      CHECK_EQ(request_id2stream_id2comm_group->at(request_id), stream_id2comm_group);
+    for (int64_t i = 0; i < request_ids.size(); ++i) {
+      CHECK_EQ(request_id2stream_id2comm_group->at(request_ids.at(i)), stream_id2comm_group);
     }
     return stream_id2comm_group->at(stream_id);
   }
@@ -663,6 +663,10 @@ void NcclExecutorBackend::GroupRequests(
 
 void* NcclExecutorBackend::CreateExecutorToken(int64_t job_id, int32_t request_id) {
   return impl_->CreateExecutorToken(job_id, request_id);
+}
+
+void NcclExecutorBackend::DestroyExecutorToken(void* executor_token) {
+  return impl_->DestroyExecutorToken(executor_token);
 }
 
 void NcclExecutorBackend::ExecuteRequests(const int64_t job_id,
