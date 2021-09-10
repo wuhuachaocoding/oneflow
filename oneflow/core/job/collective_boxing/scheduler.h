@@ -46,8 +46,7 @@ class Scheduler final {
 
   RequestHandle* CreateRequestHandle(const RankDesc& rank_desc);
   void DestroyRequestHandle(RequestHandle*);
-  void Schedule(const std::shared_ptr<RequestHandle>& handle,
-                std::shared_ptr<const RuntimeRequestInfo> request_info);
+  void Schedule(RequestHandle* handle, std::shared_ptr<const RuntimeRequestInfo> request_info);
   std::shared_ptr<const SchedulerPlanToken> AddPlan(const Plan& plan);
   void DeletePlan(const std::shared_ptr<const SchedulerPlanToken> plan_token);
 

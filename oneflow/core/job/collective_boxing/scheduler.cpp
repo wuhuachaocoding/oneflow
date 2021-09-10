@@ -242,7 +242,7 @@ void Scheduler::DestroyRequestHandle(RequestHandle* handle) {
   impl_->request_store->DestroyRequestEntryToken(handle->request_entry_token());
 }
 
-void Scheduler::Schedule(const std::shared_ptr<RequestHandle>& handle,
+void Scheduler::Schedule(RequestHandle* handle,
                          std::shared_ptr<const RuntimeRequestInfo> request_info) {
   const int32_t local_rank = handle->local_rank();
   const bool ready = impl_->request_store->GetRequestEntry(handle->request_entry_token())

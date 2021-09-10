@@ -22,6 +22,7 @@ limitations under the License.
 namespace oneflow {
 
 class CollectiveBoxingKernelState final : public KernelState {
+ public:
   OF_DISALLOW_COPY_AND_MOVE(CollectiveBoxingKernelState);
   explicit CollectiveBoxingKernelState(const RankDesc& rank_desc) {
     request_handle_ = Global<Scheduler>::Get()->CreateRequestHandle(rank_desc);
@@ -53,7 +54,7 @@ class CollectiveBoxingGenericKernel final : public Kernel {
 template<DeviceType device_type>
 void CollectiveBoxingGenericKernel<device_type>::VirtualKernelInit(KernelContext* ctx) {
   const RankDesc& rank_desc = this->op_conf().collective_boxing_generic_conf().rank_desc();
-  ctx->set_state(std::make_shared<CollectiveBoxingKernelState>(rank_desc);
+  ctx->set_state(std::make_shared<CollectiveBoxingKernelState>(rank_desc));
 }
 
 template<DeviceType device_type>
