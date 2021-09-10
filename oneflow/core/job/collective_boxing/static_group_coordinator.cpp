@@ -63,9 +63,7 @@ void StaticGroupCoordinator::AddPlan(const std::vector<int64_t>& job_ids) {
   };
 
   for (const auto& job_id : job_ids) {
-    StaticGroupRequestsInfo info;
     std::vector<int32_t> request_ids;
-    const int32_t request_count = request_store_->RequestCount4Job(job_id);
     request_store_->ForEachMutRequestEntryInJob(
         job_id, [&](RequestEntry* request_entry, int32_t i, int32_t request_id) {
           if (request_entry->HasRankOnThisNode()) { request_ids.push_back(request_id); }
@@ -77,9 +75,11 @@ void StaticGroupCoordinator::AddPlan(const std::vector<int64_t>& job_ids) {
                                       > GetRequestDesc(job_id, b).dependency_depth();
                              })
           == request_ids.end());
+    StaticGroupRequestsInfo info;
     std::vector<GroupState>& group_states = info.group_states;
     std::vector<RequestIndex>& request_id2index = info.request_id2index;
     std::vector<std::vector<int32_t>>& group_id2request_ids = info.group_id2request_ids;
+    const int32_t request_count = request_store_->RequestCount4Job(job_id);
     request_id2index.resize(request_count);
     executor_->GroupRequests(
         job_id, request_ids, [&](int64_t job_id, std::vector<int32_t>&& group) {
