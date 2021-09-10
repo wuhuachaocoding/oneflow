@@ -336,58 +336,59 @@ void LaunchAggregatedOps(const CommGroup& comm_group,
     const auto comm = comm_rank.nccl_comm();
     const StreamCtx* stream_ctx = device_id2stream_ctx.at(comm_rank.device_id()).get();
     OF_CUDA_CHECK(cudaSetDevice(comm_rank.device_id()));
-    for (int request_id : request_ids) {
-      RequestEntry* request_entry = request_store->MutRequestEntry(job_id, request_id);
-      const auto& op_desc = request_entry->desc().op_desc();
-      const std::shared_ptr<const RuntimeRequestInfo>& runtime_request_info =
-          request_entry->GetRuntimeRequest(local_rank);
-      const OpType op_type = op_desc.op_type();
-      const void* send_buff = runtime_request_info->send_buff;
-      void* recv_buff = runtime_request_info->recv_buff;
-      const int64_t elem_cnt = request_entry->elem_cnt();
-      const ncclDataType_t nccl_data_type = GetNcclDataType(op_desc.data_type());
-      const int32_t num_ranks = comm_group.global_rank_count();
-      if (op_type == OpType::kOpTypeAllReduce) {
-        OF_NCCL_CHECK(ncclAllReduce(send_buff, recv_buff, elem_cnt, nccl_data_type,
-                                    GetNcclReduceOp(op_desc.reduce_method()), comm,
-                                    stream_ctx->stream()));
-      } else if (op_type == OpType::kOpTypeAllGather) {
-        CHECK_EQ(elem_cnt % num_ranks, 0);
-        OF_NCCL_CHECK(ncclAllGather(send_buff, recv_buff, elem_cnt / num_ranks, nccl_data_type,
-                                    comm, stream_ctx->stream()));
-      } else if (op_type == OpType::kOpTypeReduceScatter) {
-        CHECK_EQ(elem_cnt % num_ranks, 0);
-        OF_NCCL_CHECK(ncclReduceScatter(send_buff, recv_buff, elem_cnt / num_ranks, nccl_data_type,
+    request_store->ForEachMutRequestEntryForIdsInJob(
+        job_id, request_ids, [&](RequestEntry* request_entry, int32_t i, int32_t request_id) {
+          const auto& op_desc = request_entry->desc().op_desc();
+          const std::shared_ptr<const RuntimeRequestInfo>& runtime_request_info =
+              request_entry->GetRuntimeRequest(local_rank);
+          const OpType op_type = op_desc.op_type();
+          const void* send_buff = runtime_request_info->send_buff;
+          void* recv_buff = runtime_request_info->recv_buff;
+          const int64_t elem_cnt = request_entry->elem_cnt();
+          const ncclDataType_t nccl_data_type = GetNcclDataType(op_desc.data_type());
+          const int32_t num_ranks = comm_group.global_rank_count();
+          if (op_type == OpType::kOpTypeAllReduce) {
+            OF_NCCL_CHECK(ncclAllReduce(send_buff, recv_buff, elem_cnt, nccl_data_type,
                                         GetNcclReduceOp(op_desc.reduce_method()), comm,
                                         stream_ctx->stream()));
-      } else if (op_type == OpType::kOpTypeReduce) {
-        OF_NCCL_CHECK(ncclReduce(send_buff, recv_buff, elem_cnt, nccl_data_type,
-                                 GetNcclReduceOp(op_desc.reduce_method()), op_desc.root(), comm,
-                                 stream_ctx->stream()));
-      } else if (op_type == OpType::kOpTypeBroadcast) {
-        OF_NCCL_CHECK(ncclBroadcast(send_buff, recv_buff, elem_cnt, nccl_data_type, op_desc.root(),
-                                    comm, stream_ctx->stream()));
-      } else if (op_type == OpType::kOpTypeAll2All) {
+          } else if (op_type == OpType::kOpTypeAllGather) {
+            CHECK_EQ(elem_cnt % num_ranks, 0);
+            OF_NCCL_CHECK(ncclAllGather(send_buff, recv_buff, elem_cnt / num_ranks, nccl_data_type,
+                                        comm, stream_ctx->stream()));
+          } else if (op_type == OpType::kOpTypeReduceScatter) {
+            CHECK_EQ(elem_cnt % num_ranks, 0);
+            OF_NCCL_CHECK(ncclReduceScatter(
+                send_buff, recv_buff, elem_cnt / num_ranks, nccl_data_type,
+                GetNcclReduceOp(op_desc.reduce_method()), comm, stream_ctx->stream()));
+          } else if (op_type == OpType::kOpTypeReduce) {
+            OF_NCCL_CHECK(ncclReduce(send_buff, recv_buff, elem_cnt, nccl_data_type,
+                                     GetNcclReduceOp(op_desc.reduce_method()), op_desc.root(), comm,
+                                     stream_ctx->stream()));
+          } else if (op_type == OpType::kOpTypeBroadcast) {
+            OF_NCCL_CHECK(ncclBroadcast(send_buff, recv_buff, elem_cnt, nccl_data_type,
+                                        op_desc.root(), comm, stream_ctx->stream()));
+          } else if (op_type == OpType::kOpTypeAll2All) {
 #if NCCL_VERSION_CODE > 2700
-        const int64_t elem_per_rank = elem_cnt / num_ranks;
-        const int64_t elem_per_chunk = elem_per_rank / num_ranks;
-        const int64_t dtype_size = GetSizeOfDataType(op_desc.data_type());
-        const int64_t chunk_size = elem_per_chunk * dtype_size;
-        for (int64_t j = 0; j < num_ranks; ++j) {
-          OF_NCCL_CHECK(ncclSend(reinterpret_cast<const void*>(
-                                     reinterpret_cast<const char*>(send_buff) + j * chunk_size),
-                                 elem_per_chunk, nccl_data_type, j, comm, stream_ctx->stream()));
-          OF_NCCL_CHECK(
-              ncclRecv(reinterpret_cast<void*>(reinterpret_cast<char*>(recv_buff) + j * chunk_size),
-                       elem_per_chunk, nccl_data_type, j, comm, stream_ctx->stream()));
-        }
+            const int64_t elem_per_rank = elem_cnt / num_ranks;
+            const int64_t elem_per_chunk = elem_per_rank / num_ranks;
+            const int64_t dtype_size = GetSizeOfDataType(op_desc.data_type());
+            const int64_t chunk_size = elem_per_chunk * dtype_size;
+            for (int64_t j = 0; j < num_ranks; ++j) {
+              OF_NCCL_CHECK(ncclSend(reinterpret_cast<const void*>(
+                                         reinterpret_cast<const char*>(send_buff) + j * chunk_size),
+                                     elem_per_chunk, nccl_data_type, j, comm,
+                                     stream_ctx->stream()));
+              OF_NCCL_CHECK(ncclRecv(
+                  reinterpret_cast<void*>(reinterpret_cast<char*>(recv_buff) + j * chunk_size),
+                  elem_per_chunk, nccl_data_type, j, comm, stream_ctx->stream()));
+            }
 #else
         UNIMPLEMENTED();
 #endif
-      } else {
-        UNIMPLEMENTED();
-      }
-    }
+          } else {
+            UNIMPLEMENTED();
+          }
+        });
   }
   OF_NCCL_CHECK(ncclGroupEnd());
 }
