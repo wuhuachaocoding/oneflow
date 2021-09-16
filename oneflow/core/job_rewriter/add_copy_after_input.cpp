@@ -34,10 +34,10 @@ Maybe<void> AddCopyAfterInput(const OpGraph& op_graph, JobBuilder* job_builder) 
       copy_conf->set_in(out_lbn);
       copy_conf->set_out("out");
       proxy_op_conf.set_scope_symbol_id(op_conf.scope_symbol_id());
-      job_builder->AddOps(op_node->parallel_desc().parallel_conf(), {proxy_op_conf});
     }
     const std::string& proxy_lbn =
         GenLogicalBlobName(proxy_op_conf.name(), proxy_op_conf.copy_conf().out());
+    bool need_proxy_node = false;
     for (const OpEdge* out_edge : op_node->out_edges()) {
       const OpNode* consumer = out_edge->dst_node();
       const std::string& consumer_op_name = consumer->op().op_name();
@@ -53,7 +53,11 @@ Maybe<void> AddCopyAfterInput(const OpGraph& op_graph, JobBuilder* job_builder) 
             CHECK_EQ(out_lbn, old_val);
           }
         }
+        need_proxy_node = true;
       }
+    }
+    if (need_proxy_node) {
+      job_builder->AddOps(op_node->parallel_desc().parallel_conf(), {proxy_op_conf});
     }
   });
   for (const auto& pair : op_name2op_conf) { job_builder->MutOpsOnlyOnce({pair.second}); }
