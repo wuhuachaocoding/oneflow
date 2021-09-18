@@ -24,9 +24,27 @@ namespace primitive {
 
 namespace {
 
-template<typename T>
+template<typename T, size_t pack>
+union Pack {
+  static constexpr size_t size = sizeof(T) * pack;
+  explicit __device__ __host__ Pack(T value) {
+    static_assert(sizeof(Pack) == size, "");
+#pragma unroll
+    for (size_t i = 0; i < pack; ++i) { elem[i] = value; }
+  }
+  T elem[pack];
+  std::aligned_storage<size, size> storage;
+};
+
+template<typename T, size_t pack>
 __global__ void FillGpu(T* dst, T value, size_t count) {
-  CUDA_1D_KERNEL_LOOP_T(size_t, i, count) { dst[i] = value; }
+  const size_t pack_count = count / pack;
+  Pack<T, pack> pack_value(value);
+  auto* pack_dst = reinterpret_cast<decltype(pack_value.storage)*>(dst);
+  CUDA_1D_KERNEL_LOOP_T(size_t, i, pack_count) { pack_dst[i] = pack_value.storage; }
+  T* tail_dst = dst + pack_count * pack;
+  const size_t tail_count = count - pack_count * pack;
+  CUDA_1D_KERNEL_LOOP_T(size_t, i, tail_count) { tail_dst[i] = value; }
 }
 
 template<typename T>
@@ -44,6 +62,35 @@ nv_bfloat16 GetValue<nv_bfloat16>(Scalar value) {
   return static_cast<nv_bfloat16>(GetValue<float>(value));
 }
 
+template<typename T, size_t pack>
+typename std::enable_if<(pack != 0), void>::type LaunchPackFill(cudaStream_t stream, T* dst,
+                                                                T value, size_t count) {
+  FillGpu<T, pack><<<BlocksNum4ThreadsNum(count), kCudaThreadsNumPerBlock, 0, stream>>>(
+      reinterpret_cast<T*>(dst), value, count);
+}
+
+template<typename T, size_t pack>
+typename std::enable_if<(pack == 0), void>::type LaunchPackFill(cudaStream_t stream, T* dst,
+                                                                T value, size_t count) {
+  LOG(FATAL) << "wrong alignment";
+}
+
+template<typename T>
+void LaunchFill(cudaStream_t stream, T* dst, T value, size_t count) {
+  auto uintptr = reinterpret_cast<std::uintptr_t>(dst);
+  if (uintptr % 16 == 0) {
+    LaunchPackFill<T, 16 / sizeof(T)>(stream, dst, value, count);
+  } else if (uintptr % 8 == 0) {
+    LaunchPackFill<T, 8 / sizeof(T)>(stream, dst, value, count);
+  } else if (uintptr % 4 == 0) {
+    LaunchPackFill<T, 4 / sizeof(T)>(stream, dst, value, count);
+  } else if (uintptr % 2 == 0) {
+    LaunchPackFill<T, 2 / sizeof(T)>(stream, dst, value, count);
+  } else {
+    LaunchPackFill<T, 1 / sizeof(T)>(stream, dst, value, count);
+  }
+}
+
 template<typename T>
 class FillImpl : public Fill, public CudaGraphSupport {
  public:
@@ -54,8 +101,7 @@ class FillImpl : public Fill, public CudaGraphSupport {
   void Launch(StreamContext* stream_ctx, void* dst, Scalar value, size_t count) override {
     cudaStream_t cuda_stream =
         CHECK_NOTNULL(dynamic_cast<CudaStreamContext*>(stream_ctx))->cuda_stream();
-    FillGpu<T><<<BlocksNum4ThreadsNum(count), kCudaThreadsNumPerBlock, 0, cuda_stream>>>(
-        reinterpret_cast<T*>(dst), GetValue<T>(value), count);
+    LaunchFill<T>(cuda_stream, reinterpret_cast<T*>(dst), GetValue<T>(value), count);
   }
 };
 
