@@ -30,6 +30,21 @@ __global__ void FillGpu(T* dst, T value, size_t count) {
 }
 
 template<typename T>
+T GetValue(Scalar value) {
+  return CHECK_JUST(value.As<T>());
+}
+
+template<>
+half GetValue<half>(Scalar value) {
+  return static_cast<half>(GetValue<float>(value));
+}
+
+template<>
+nv_bfloat16 GetValue<nv_bfloat16>(Scalar value) {
+  return static_cast<nv_bfloat16>(GetValue<float>(value));
+}
+
+template<typename T>
 class FillImpl : public Fill, public CudaGraphSupport {
  public:
   OF_DISALLOW_COPY_AND_MOVE(FillImpl);
@@ -40,7 +55,7 @@ class FillImpl : public Fill, public CudaGraphSupport {
     cudaStream_t cuda_stream =
         CHECK_NOTNULL(dynamic_cast<CudaStreamContext*>(stream_ctx))->cuda_stream();
     FillGpu<T><<<BlocksNum4ThreadsNum(count), kCudaThreadsNumPerBlock, 0, cuda_stream>>>(
-        reinterpret_cast<T*>(dst), CHECK_JUST(value.As<T>()), count);
+        reinterpret_cast<T*>(dst), GetValue<T>(value), count);
   }
 };
 
