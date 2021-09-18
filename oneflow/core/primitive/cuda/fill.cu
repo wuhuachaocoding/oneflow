@@ -24,16 +24,20 @@ namespace primitive {
 
 namespace {
 
+template<size_t size>
+using Storage = typename std::aligned_storage<size, size>::type;
+
 template<typename T, size_t pack>
 union Pack {
   static constexpr size_t size = sizeof(T) * pack;
   explicit __device__ __host__ Pack(T value) {
     static_assert(sizeof(Pack) == size, "");
+    static_assert(alignof(Pack) == size, "");
 #pragma unroll
     for (size_t i = 0; i < pack; ++i) { elem[i] = value; }
   }
   T elem[pack];
-  std::aligned_storage<size, size> storage;
+  Storage<size> storage;
 };
 
 template<typename T, size_t pack>
@@ -65,8 +69,8 @@ nv_bfloat16 GetValue<nv_bfloat16>(Scalar value) {
 template<typename T, size_t pack>
 typename std::enable_if<(pack != 0), void>::type LaunchPackFill(cudaStream_t stream, T* dst,
                                                                 T value, size_t count) {
-  FillGpu<T, pack><<<BlocksNum4ThreadsNum(count), kCudaThreadsNumPerBlock, 0, stream>>>(
-      reinterpret_cast<T*>(dst), value, count);
+  FillGpu<T, pack>
+      <<<BlocksNum4ThreadsNum(count), kCudaThreadsNumPerBlock, 0, stream>>>(dst, value, count);
 }
 
 template<typename T, size_t pack>
