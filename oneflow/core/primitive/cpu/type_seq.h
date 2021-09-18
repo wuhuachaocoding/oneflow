@@ -42,11 +42,4 @@ limitations under the License.
   CPU_PRIMITIVE_NATIVE_TYPE_SEQ    \
   CPU_PRIMITIVE_FLOAT16_TYPE_SEQ
 
-namespace std {
-
-template<>
-struct is_scalar<oneflow::float16> : std::integral_constant<bool, true> {};
-
-}  // namespace std
-
 #endif  // ONEFLOW_CORE_PRIMITIVE_CPU_TYPE_SEQ_H_

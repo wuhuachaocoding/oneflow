@@ -24,6 +24,16 @@ namespace primitive {
 namespace {
 
 template<typename T>
+T GetValue(Scalar value) {
+  return CHECK_JUST(value.As<T>());
+}
+
+template<>
+float16 GetValue<float16>(Scalar value) {
+  return static_cast<float16>(GetValue<float>(value));
+}
+
+template<typename T>
 class FillImpl : public Fill {
  public:
   OF_DISALLOW_COPY_AND_MOVE(FillImpl);
@@ -31,7 +41,7 @@ class FillImpl : public Fill {
   ~FillImpl() override = default;
 
   void Launch(StreamContext* stream_ctx, void* dst, Scalar value, size_t count) override {
-    std::fill_n(reinterpret_cast<T*>(dst), count, CHECK_JUST(value.As<T>()));
+    std::fill_n(reinterpret_cast<T*>(dst), count, GetValue<T>);
   }
 };
 

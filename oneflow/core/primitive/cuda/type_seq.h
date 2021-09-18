@@ -53,18 +53,6 @@ limitations under the License.
   CUDA_PRIMITIVE_FLOAT16_TYPE_SEQ   \
   CUDA_PRIMITIVE_BFLOAT16_TYPE_SEQ
 
-namespace std {
-
-template<>
-struct is_scalar<half> : std::integral_constant<bool, true> {};
-
-#if CUDA_VERSION >= 11000
-template<>
-struct is_scalar<nv_bfloat16> : std::integral_constant<bool, true> {};
-#endif  // CUDA_VERSION >= 11000
-
-}  // namespace std
-
 #endif  // WITH_CUDA
 
 #endif  // ONEFLOW_CORE_PRIMITIVE_CUDA_TYPE_SEQ_H_
