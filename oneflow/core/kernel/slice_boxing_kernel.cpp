@@ -19,6 +19,7 @@ limitations under the License.
 #include "oneflow/core/kernel/kernel_util.h"
 #include "oneflow/core/kernel/slice_boxing_kernel_util.h"
 #include "oneflow/core/operator/operator.h"
+#include "oneflow/core/primitive/add.h"
 
 namespace oneflow {
 
@@ -111,35 +112,28 @@ const SliceBoxingConf& SliceBoxingAddKernel<device_type, T>::GetCustomizedBoxing
 template<DeviceType device_type, typename T>
 void SliceBoxingAddKernel<device_type, T>::ForwardDataContent(KernelContext* ctx) const {
   Blob* out = ctx->BnInOp2Blob("out");
+  std::unique_ptr<primitive::Add> primitive_ =
+      primitive::NewPrimitive<primitive::AddFactory>(device_type, out->data_type());
+  CHECK(primitive_);
   FOR_RANGE(int64_t, i, 0, this->op_attribute().input_bns().size()) {
     const Blob* in_i = ctx->BnInOp2Blob(GenRepeatedBn("in", i));
     if (i == 0) {
       this->tensor_slice_copier_vec().at(i)->Copy(ctx->device_ctx(), *this->memory_copier(), out,
                                                   in_i);
     } else {
-      bool can_direct_access =
-          (device_type == kCPU)
-#ifdef WITH_CUDA
-          || (device_type == DeviceType::kGPU && in_i->mem_case().has_host_mem()
-              && in_i->mem_case().host_mem().has_cuda_pinned_mem())
-          || (device_type == DeviceType::kGPU && in_i->mem_case().has_device_cuda_mem()
-              && out->mem_case().has_device_cuda_mem()
-              && out->mem_case().device_cuda_mem().device_id()
-                     == in_i->mem_case().device_cuda_mem().device_id());
-#else
-          ;
-#endif
-      if (in_i->shape() == out->shape() && can_direct_access) {
-        SliceBoxingKernelUtil<device_type, T>::Add(ctx->device_ctx(), out->shape().elem_cnt(),
-                                                   in_i->dptr<T>(), out->dptr<T>(),
-                                                   out->mut_dptr<T>());
+      if (in_i->shape() == out->shape()) {
+        const void* srcs[2];
+        srcs[0] = in_i->dptr();
+        srcs[1] = out->dptr();
+        primitive_->Launch(ctx->stream_ctx(), srcs, 2, out->mut_dptr(), out->shape().elem_cnt());
       } else {
         Blob* buf = ctx->BnInOp2Blob("buf");
         this->tensor_slice_copier_vec().at(i)->Copy(ctx->device_ctx(), *this->memory_copier(), buf,
                                                     in_i);
-        SliceBoxingKernelUtil<device_type, T>::Add(ctx->device_ctx(), out->shape().elem_cnt(),
-                                                   buf->dptr<T>(), out->dptr<T>(),
-                                                   out->mut_dptr<T>());
+        const void* srcs[2];
+        srcs[0] = buf->dptr();
+        srcs[1] = out->dptr();
+        primitive_->Launch(ctx->stream_ctx(), srcs, 2, out->mut_dptr(), out->shape().elem_cnt());
       }
     }
   }
