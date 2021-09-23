@@ -63,6 +63,11 @@ void TensorSliceCopier::Copy(DeviceCtx* ctx, const MemoryCopier& copier, void* d
   copier.Copy(ctx, dst, src, memory_copy_nd_desc_);
 }
 
+void TensorSliceCopier::Copy(StreamContext* stream_ctx, const primitive::CopyNd& copier, void* dst,
+                             const void* src) const {
+  copier.Launch(stream_ctx, dst, src, memory_copy_nd_desc_);
+}
+
 void TensorSliceCopier::Copy(DeviceCtx* ctx, const MemoryCopier& copier, Blob* dst_blob,
                              const Blob* src_blob) const {
   CHECK_EQ(dst_blob->data_type(), data_type_);
@@ -70,6 +75,15 @@ void TensorSliceCopier::Copy(DeviceCtx* ctx, const MemoryCopier& copier, Blob* d
   CHECK_EQ(dst_view_.shape().elem_cnt(), dst_blob->shape().elem_cnt());
   CHECK_EQ(src_view_.shape().elem_cnt(), src_blob->shape().elem_cnt());
   Copy(ctx, copier, dst_blob->mut_dptr(), src_blob->dptr());
+}
+
+void TensorSliceCopier::Copy(StreamContext* stream_ctx, const primitive::CopyNd& copier,
+                             Blob* dst_blob, const Blob* src_blob) const {
+  CHECK_EQ(dst_blob->data_type(), data_type_);
+  CHECK_EQ(src_blob->data_type(), data_type_);
+  CHECK_EQ(dst_view_.shape().elem_cnt(), dst_blob->shape().elem_cnt());
+  CHECK_EQ(src_view_.shape().elem_cnt(), src_blob->shape().elem_cnt());
+  Copy(stream_ctx, copier, dst_blob->mut_dptr(), src_blob->dptr());
 }
 
 }  // namespace oneflow

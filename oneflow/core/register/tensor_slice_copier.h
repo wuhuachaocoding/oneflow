@@ -20,6 +20,7 @@ limitations under the License.
 #include "oneflow/core/register/tensor_slice_view.h"
 #include "oneflow/core/register/blob.h"
 #include "oneflow/core/device/memory_copier.h"
+#include "oneflow/core/primitive/copy_nd.h"
 
 namespace oneflow {
 
@@ -34,6 +35,10 @@ class TensorSliceCopier final {
 
   void Copy(DeviceCtx* ctx, const MemoryCopier& copier, void* dst, const void* src) const;
   void Copy(DeviceCtx* ctx, const MemoryCopier& copier, Blob* dst_blob, const Blob* src_blob) const;
+  void Copy(StreamContext* stream_ctx, const primitive::CopyNd& copier, void* dst,
+            const void* src) const;
+  void Copy(StreamContext* stream_ctx, const primitive::CopyNd& copier, Blob* dst_blob,
+            const Blob* src_blob) const;
 
  private:
   MemoryCopyNdDesc memory_copy_nd_desc_;

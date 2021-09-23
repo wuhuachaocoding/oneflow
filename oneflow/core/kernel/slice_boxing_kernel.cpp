@@ -15,9 +15,9 @@ limitations under the License.
 */
 #include "oneflow/core/kernel/kernel.h"
 #include "oneflow/core/register/tensor_slice_copier.h"
-#include "oneflow/core/device/memory_copier.h"
 #include "oneflow/core/operator/operator.h"
 #include "oneflow/core/primitive/add.h"
+#include "oneflow/core/primitive/copy_nd.h"
 
 namespace oneflow {
 
@@ -29,14 +29,15 @@ class SliceBoxingKernel : public Kernel {
 
  protected:
   virtual const SliceBoxingConf& GetCustomizedBoxingConf() const = 0;
-  MemoryCopier* memory_copier() const;
+  primitive::CopyNd* copy_nd_primitive() const;
+
   const std::vector<std::shared_ptr<TensorSliceCopier>>& tensor_slice_copier_vec() const;
 
  private:
   void VirtualKernelInit(KernelContext* ctx) override;
 
   std::vector<std::shared_ptr<TensorSliceCopier>> tensor_slice_copier_vec_;
-  std::unique_ptr<MemoryCopier> memory_copier_;
+  std::unique_ptr<primitive::CopyNd> copy_nd_primitive_;
 };
 
 class SliceBoxingCopyKernel final : public SliceBoxingKernel {
@@ -62,7 +63,8 @@ class SliceBoxingAddKernel final : public SliceBoxingKernel {
 };
 
 void SliceBoxingKernel::VirtualKernelInit(KernelContext* ctx) {
-  memory_copier_.reset(NewDefaultMemoryCopier(ctx->stream_ctx()->device_type()));
+  copy_nd_primitive_ =
+      primitive::NewPrimitive<primitive::CopyNdFactory>(ctx->stream_ctx()->device_type());
   const SliceBoxingConf& conf = GetCustomizedBoxingConf();
   const TensorSliceView out_slice(conf.out_slice());
   for (const TensorSliceViewProto& in_slice_proto : conf.in_slice()) {
@@ -72,7 +74,7 @@ void SliceBoxingKernel::VirtualKernelInit(KernelContext* ctx) {
   }
 }
 
-MemoryCopier* SliceBoxingKernel::memory_copier() const { return memory_copier_.get(); }
+primitive::CopyNd* SliceBoxingKernel::copy_nd_primitive() const { return copy_nd_primitive_.get(); }
 
 const std::vector<std::shared_ptr<TensorSliceCopier>>& SliceBoxingKernel::tensor_slice_copier_vec()
     const {
@@ -87,7 +89,7 @@ void SliceBoxingCopyKernel::ForwardDataContent(KernelContext* ctx) const {
   Blob* out = ctx->BnInOp2Blob("out");
   FOR_RANGE(int64_t, i, 0, this->op_attribute().input_bns().size()) {
     const Blob* in_i = ctx->BnInOp2Blob(GenRepeatedBn("in", i));
-    this->tensor_slice_copier_vec().at(i)->Copy(ctx->device_ctx(), *this->memory_copier(), out,
+    this->tensor_slice_copier_vec().at(i)->Copy(ctx->stream_ctx(), *this->copy_nd_primitive(), out,
                                                 in_i);
   }
 }
@@ -104,8 +106,8 @@ void SliceBoxingAddKernel::ForwardDataContent(KernelContext* ctx) const {
   FOR_RANGE(int64_t, i, 0, this->op_attribute().input_bns().size()) {
     const Blob* in_i = ctx->BnInOp2Blob(GenRepeatedBn("in", i));
     if (i == 0) {
-      this->tensor_slice_copier_vec().at(i)->Copy(ctx->device_ctx(), *this->memory_copier(), out,
-                                                  in_i);
+      this->tensor_slice_copier_vec().at(i)->Copy(ctx->stream_ctx(), *this->copy_nd_primitive(),
+                                                  out, in_i);
     } else {
       if (in_i->shape() == out->shape()) {
         const void* srcs[2];
@@ -114,8 +116,8 @@ void SliceBoxingAddKernel::ForwardDataContent(KernelContext* ctx) const {
         primitive_->Launch(ctx->stream_ctx(), srcs, 2, out->mut_dptr(), out->shape().elem_cnt());
       } else {
         Blob* buf = ctx->BnInOp2Blob("buf");
-        this->tensor_slice_copier_vec().at(i)->Copy(ctx->device_ctx(), *this->memory_copier(), buf,
-                                                    in_i);
+        this->tensor_slice_copier_vec().at(i)->Copy(ctx->stream_ctx(), *this->copy_nd_primitive(),
+                                                    buf, in_i);
         const void* srcs[2];
         srcs[0] = buf->dptr();
         srcs[1] = out->dptr();
