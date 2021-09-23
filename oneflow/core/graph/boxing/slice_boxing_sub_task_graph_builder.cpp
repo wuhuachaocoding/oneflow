@@ -30,14 +30,6 @@ namespace oneflow {
 
 namespace {
 
-void GroupParallelIdByMachine(const ParallelDesc& pd,
-                              HashMap<int64_t, std::vector<int64_t>>* machine_id2parallel_ids) {
-  FOR_RANGE(int64_t, parallel_id, 0, pd.parallel_num()) {
-    int64_t machine_id = CHECK_JUST(pd.MachineId4ParallelId(parallel_id));
-    (*machine_id2parallel_ids)[machine_id].push_back(parallel_id);
-  }
-}
-
 bool ContainsEmptySlice(const std::vector<TensorSliceView>& slices) {
   return std::any_of(slices.cbegin(), slices.cend(),
                      [](const TensorSliceView& slice) { return slice.IsEmpty(); });

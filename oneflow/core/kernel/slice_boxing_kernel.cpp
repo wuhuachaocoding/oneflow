@@ -16,14 +16,11 @@ limitations under the License.
 #include "oneflow/core/kernel/kernel.h"
 #include "oneflow/core/register/tensor_slice_copier.h"
 #include "oneflow/core/device/memory_copier.h"
-#include "oneflow/core/kernel/kernel_util.h"
-#include "oneflow/core/kernel/slice_boxing_kernel_util.h"
 #include "oneflow/core/operator/operator.h"
 #include "oneflow/core/primitive/add.h"
 
 namespace oneflow {
 
-template<DeviceType device_type, typename T>
 class SliceBoxingKernel : public Kernel {
  public:
   OF_DISALLOW_COPY_AND_MOVE(SliceBoxingKernel);
@@ -42,8 +39,7 @@ class SliceBoxingKernel : public Kernel {
   std::unique_ptr<MemoryCopier> memory_copier_;
 };
 
-template<DeviceType device_type, typename T>
-class SliceBoxingCopyKernel final : public SliceBoxingKernel<device_type, T> {
+class SliceBoxingCopyKernel final : public SliceBoxingKernel {
  public:
   OF_DISALLOW_COPY_AND_MOVE(SliceBoxingCopyKernel);
   SliceBoxingCopyKernel() = default;
@@ -54,8 +50,7 @@ class SliceBoxingCopyKernel final : public SliceBoxingKernel<device_type, T> {
   void ForwardDataContent(KernelContext* ctx) const override;
 };
 
-template<DeviceType device_type, typename T>
-class SliceBoxingAddKernel final : public SliceBoxingKernel<device_type, T> {
+class SliceBoxingAddKernel final : public SliceBoxingKernel {
  public:
   OF_DISALLOW_COPY_AND_MOVE(SliceBoxingAddKernel);
   SliceBoxingAddKernel() = default;
@@ -66,9 +61,8 @@ class SliceBoxingAddKernel final : public SliceBoxingKernel<device_type, T> {
   void ForwardDataContent(KernelContext* ctx) const override;
 };
 
-template<DeviceType device_type, typename T>
-void SliceBoxingKernel<device_type, T>::VirtualKernelInit(KernelContext* ctx) {
-  memory_copier_.reset(NewDefaultMemoryCopier(device_type));
+void SliceBoxingKernel::VirtualKernelInit(KernelContext* ctx) {
+  memory_copier_.reset(NewDefaultMemoryCopier(ctx->stream_ctx()->device_type()));
   const SliceBoxingConf& conf = GetCustomizedBoxingConf();
   const TensorSliceView out_slice(conf.out_slice());
   for (const TensorSliceViewProto& in_slice_proto : conf.in_slice()) {
@@ -78,24 +72,18 @@ void SliceBoxingKernel<device_type, T>::VirtualKernelInit(KernelContext* ctx) {
   }
 }
 
-template<DeviceType device_type, typename T>
-MemoryCopier* SliceBoxingKernel<device_type, T>::memory_copier() const {
-  return memory_copier_.get();
-}
+MemoryCopier* SliceBoxingKernel::memory_copier() const { return memory_copier_.get(); }
 
-template<DeviceType device_type, typename T>
-const std::vector<std::shared_ptr<TensorSliceCopier>>&
-SliceBoxingKernel<device_type, T>::tensor_slice_copier_vec() const {
+const std::vector<std::shared_ptr<TensorSliceCopier>>& SliceBoxingKernel::tensor_slice_copier_vec()
+    const {
   return tensor_slice_copier_vec_;
 }
 
-template<DeviceType device_type, typename T>
-const SliceBoxingConf& SliceBoxingCopyKernel<device_type, T>::GetCustomizedBoxingConf() const {
+const SliceBoxingConf& SliceBoxingCopyKernel::GetCustomizedBoxingConf() const {
   return this->op_conf().slice_boxing_copy_conf().slice_boxing_conf();
 }
 
-template<DeviceType device_type, typename T>
-void SliceBoxingCopyKernel<device_type, T>::ForwardDataContent(KernelContext* ctx) const {
+void SliceBoxingCopyKernel::ForwardDataContent(KernelContext* ctx) const {
   Blob* out = ctx->BnInOp2Blob("out");
   FOR_RANGE(int64_t, i, 0, this->op_attribute().input_bns().size()) {
     const Blob* in_i = ctx->BnInOp2Blob(GenRepeatedBn("in", i));
@@ -104,16 +92,14 @@ void SliceBoxingCopyKernel<device_type, T>::ForwardDataContent(KernelContext* ct
   }
 }
 
-template<DeviceType device_type, typename T>
-const SliceBoxingConf& SliceBoxingAddKernel<device_type, T>::GetCustomizedBoxingConf() const {
+const SliceBoxingConf& SliceBoxingAddKernel::GetCustomizedBoxingConf() const {
   return this->op_conf().slice_boxing_add_conf().slice_boxing_conf();
 }
 
-template<DeviceType device_type, typename T>
-void SliceBoxingAddKernel<device_type, T>::ForwardDataContent(KernelContext* ctx) const {
+void SliceBoxingAddKernel::ForwardDataContent(KernelContext* ctx) const {
   Blob* out = ctx->BnInOp2Blob("out");
-  std::unique_ptr<primitive::Add> primitive_ =
-      primitive::NewPrimitive<primitive::AddFactory>(device_type, out->data_type());
+  std::unique_ptr<primitive::Add> primitive_ = primitive::NewPrimitive<primitive::AddFactory>(
+      ctx->stream_ctx()->device_type(), out->data_type());
   CHECK(primitive_);
   FOR_RANGE(int64_t, i, 0, this->op_attribute().input_bns().size()) {
     const Blob* in_i = ctx->BnInOp2Blob(GenRepeatedBn("in", i));
@@ -139,9 +125,7 @@ void SliceBoxingAddKernel<device_type, T>::ForwardDataContent(KernelContext* ctx
   }
 }
 
-ADD_DEFAULT_KERNEL_CREATOR(OperatorConf::kSliceBoxingCopyConf, SliceBoxingCopyKernel,
-                           POD_DATA_TYPE_SEQ FLOAT16_DATA_TYPE_SEQ)
-ADD_DEFAULT_KERNEL_CREATOR(OperatorConf::kSliceBoxingAddConf, SliceBoxingAddKernel,
-                           ARITHMETIC_DATA_TYPE_SEQ FLOAT16_DATA_TYPE_SEQ)
+REGISTER_KERNEL(OperatorConf::kSliceBoxingCopyConf, SliceBoxingCopyKernel);
+REGISTER_KERNEL(OperatorConf::kSliceBoxingAddConf, SliceBoxingAddKernel);
 
 }  // namespace oneflow
