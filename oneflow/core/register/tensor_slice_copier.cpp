@@ -65,12 +65,12 @@ void TensorSliceCopier::Copy(DeviceCtx* ctx, const MemoryCopier& copier, void* d
 
 void TensorSliceCopier::Copy(StreamContext* stream_ctx, const primitive::MemoryCopyNd& copier,
                              void* dst, const void* src) const {
-  copier.Launch(
-      stream_ctx, memory_copy_nd_desc_.data_type, memory_copy_nd_desc_.dst_shape.NumAxes(), dst,
-      memory_copy_nd_desc_.dst_shape.dim_vec().data(),
-      memory_copy_nd_desc_.dst_pos.dim_vec().data(), src,
-      memory_copy_nd_desc_.src_shape.dim_vec().data(),
-      memory_copy_nd_desc_.src_pos.dim_vec().data(), memory_copy_nd_desc_.extent.dim_vec().data());
+  copier.Launch(stream_ctx, DataType::kChar, memory_copy_nd_desc_.dst_shape.NumAxes(), dst,
+                memory_copy_nd_desc_.dst_shape.dim_vec().data(),
+                memory_copy_nd_desc_.dst_pos.dim_vec().data(), src,
+                memory_copy_nd_desc_.src_shape.dim_vec().data(),
+                memory_copy_nd_desc_.src_pos.dim_vec().data(),
+                memory_copy_nd_desc_.extent.dim_vec().data());
 }
 
 void TensorSliceCopier::Copy(DeviceCtx* ctx, const MemoryCopier& copier, Blob* dst_blob,
@@ -84,9 +84,6 @@ void TensorSliceCopier::Copy(DeviceCtx* ctx, const MemoryCopier& copier, Blob* d
 
 void TensorSliceCopier::Copy(StreamContext* stream_ctx, const primitive::MemoryCopyNd& copier,
                              Blob* dst_blob, const Blob* src_blob) const {
-  LOG(ERROR) << "TensorSliceCopier::Copy dst_shape: " << dst_blob->shape().ToString() << " "
-             << dst_blob->shape().elem_cnt() << " src_shape: " << src_blob->shape().ToString()
-             << " " << src_blob->shape().elem_cnt();
   CHECK_EQ(dst_blob->data_type(), data_type_);
   CHECK_EQ(src_blob->data_type(), data_type_);
   CHECK_EQ(dst_view_.shape().elem_cnt(), dst_blob->shape().elem_cnt());

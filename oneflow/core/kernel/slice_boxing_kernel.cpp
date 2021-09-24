@@ -89,11 +89,8 @@ const SliceBoxingConf& SliceBoxingCopyKernel::GetCustomizedBoxingConf() const {
 
 void SliceBoxingCopyKernel::ForwardDataContent(KernelContext* ctx) const {
   Blob* out = ctx->BnInOp2Blob("out");
-  LOG(ERROR) << "run SliceBoxingCopyKernel " << this->op_conf().name() << " out shape "
-             << out->shape().ToString();
   FOR_RANGE(int64_t, i, 0, this->op_attribute().input_bns().size()) {
     const Blob* in_i = ctx->BnInOp2Blob(GenRepeatedBn("in", i));
-    LOG(ERROR) << i << " in shape " << in_i->shape().ToString();
     this->tensor_slice_copier_vec().at(i)->Copy(ctx->stream_ctx(), *this->copy_nd_primitive(), out,
                                                 in_i);
   }
@@ -105,8 +102,6 @@ const SliceBoxingConf& SliceBoxingAddKernel::GetCustomizedBoxingConf() const {
 
 void SliceBoxingAddKernel::ForwardDataContent(KernelContext* ctx) const {
   Blob* out = ctx->BnInOp2Blob("out");
-  LOG(ERROR) << "run SliceBoxingAddKernel " << this->op_conf().name() << " out shape "
-             << out->shape().ToString();
   std::unique_ptr<primitive::Add> primitive_ = primitive::NewPrimitive<primitive::AddFactory>(
       ctx->stream_ctx()->device_type(), out->data_type());
   CHECK(primitive_);
