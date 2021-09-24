@@ -99,6 +99,38 @@ void CopyNDCpuImpl(DeviceCtx* ctx, void* dst, const void* src, const MemoryCopyN
   }
 }
 
+MemoryCopyNdDesc MemoryCopyNdDesc::CreateDimReducedDesc() const {
+  MemoryCopyNdDesc reduced;
+  DimVector dst_shape_vec;
+  DimVector src_shape_vec;
+  DimVector dst_pos_vec;
+  DimVector src_pos_vec;
+  DimVector extent_vec;
+  FOR_RANGE(int64_t, i, 0, MemoryCopyNdDescGetNumAxes(*this)) {
+    if (dst_shape.At(i) == src_shape.At(i) && dst_shape.At(i) == extent.At(i) && dst_pos.At(i) == 0
+        && src_pos.At(i) == 0 && i != 0) {
+      dst_shape_vec.back() *= extent.At(i);
+      src_shape_vec.back() *= extent.At(i);
+      dst_pos_vec.back() *= extent.At(i);
+      src_pos_vec.back() *= extent.At(i);
+      extent_vec.back() *= extent.At(i);
+    } else {
+      dst_shape_vec.push_back(dst_shape.At(i));
+      src_shape_vec.push_back(src_shape.At(i));
+      dst_pos_vec.push_back(dst_pos.At(i));
+      src_pos_vec.push_back(src_pos.At(i));
+      extent_vec.push_back(extent.At(i));
+    }
+  }
+  reduced.dst_shape = Shape(dst_shape_vec);
+  reduced.src_shape = Shape(src_shape_vec);
+  reduced.dst_pos = NdIndex(dst_pos_vec);
+  reduced.src_pos = NdIndex(src_pos_vec);
+  reduced.extent = Shape(extent_vec);
+  reduced.data_type = data_type;
+  return reduced;
+}
+
 void MemoryCopier::Copy(DeviceCtx* ctx, void* dst, const void* src,
                         const MemoryCopyNdDesc& desc) const {
   CheckMemoryCopyNdDesc(desc);

@@ -274,7 +274,7 @@ Maybe<SubTskGphBuilderStatus> SliceBoxingSubTskGphBuilder::Build(
                        logical_blob_desc, sorted_in_tasks, sorted_out_tasks);
     comment = "BuildSubTaskGphP2S";
   } else if (SubTskGphBuilderUtil::IsBoxingP2B(in_sbp_parallel, out_sbp_parallel)) {
-    if (true || logical_blob_desc.shape().elem_cnt() < out_parallel_desc.parallel_num()) {
+    if (logical_blob_desc.shape().elem_cnt() < out_parallel_desc.parallel_num()) {
       BuildSubTaskGphP2B(in_parallel_desc, out_parallel_desc, in_sbp_parallel, out_sbp_parallel,
                          logical_blob_desc, sorted_in_tasks, sorted_out_tasks);
       comment = "BuildSubTaskGphP2B";

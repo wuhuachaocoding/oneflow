@@ -20,9 +20,19 @@ limitations under the License.
 #include "oneflow/core/common/nd_index.h"
 #include "oneflow/core/common/shape.h"
 #include "oneflow/core/job/resource.pb.h"
-#include "oneflow/core/common/memory_copy_nd_desc.h"
 
 namespace oneflow {
+
+struct MemoryCopyNdDesc {
+  Shape dst_shape;
+  Shape src_shape;
+  NdIndex dst_pos;
+  NdIndex src_pos;
+  Shape extent;
+  DataType data_type;
+
+  MemoryCopyNdDesc CreateDimReducedDesc() const;
+};
 
 template<int32_t NDIMS>
 void CopyNDCpuImpl(DeviceCtx* ctx, void* dst, const void* src, const MemoryCopyNdDesc& desc);

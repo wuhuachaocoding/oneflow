@@ -17,7 +17,7 @@ limitations under the License.
 #include "oneflow/core/register/tensor_slice_copier.h"
 #include "oneflow/core/operator/operator.h"
 #include "oneflow/core/primitive/add.h"
-#include "oneflow/core/primitive/copy_nd.h"
+#include "oneflow/core/primitive/memory_copy_nd.h"
 
 namespace oneflow {
 
@@ -29,7 +29,7 @@ class SliceBoxingKernel : public Kernel {
 
  protected:
   virtual const SliceBoxingConf& GetCustomizedBoxingConf() const = 0;
-  primitive::CopyNd* copy_nd_primitive() const;
+  primitive::MemoryCopyNd* copy_nd_primitive() const;
 
   const std::vector<std::shared_ptr<TensorSliceCopier>>& tensor_slice_copier_vec() const;
 
@@ -37,7 +37,7 @@ class SliceBoxingKernel : public Kernel {
   void VirtualKernelInit(KernelContext* ctx) override;
 
   std::vector<std::shared_ptr<TensorSliceCopier>> tensor_slice_copier_vec_;
-  std::unique_ptr<primitive::CopyNd> copy_nd_primitive_;
+  std::unique_ptr<primitive::MemoryCopyNd> copy_nd_primitive_;
 };
 
 class SliceBoxingCopyKernel final : public SliceBoxingKernel {
@@ -64,7 +64,7 @@ class SliceBoxingAddKernel final : public SliceBoxingKernel {
 
 void SliceBoxingKernel::VirtualKernelInit(KernelContext* ctx) {
   copy_nd_primitive_ =
-      primitive::NewPrimitive<primitive::CopyNdFactory>(ctx->stream_ctx()->device_type());
+      primitive::NewPrimitive<primitive::MemoryCopyNdFactory>(ctx->stream_ctx()->device_type());
   const SliceBoxingConf& conf = GetCustomizedBoxingConf();
   const TensorSliceView out_slice(conf.out_slice());
   for (const TensorSliceViewProto& in_slice_proto : conf.in_slice()) {
@@ -74,7 +74,9 @@ void SliceBoxingKernel::VirtualKernelInit(KernelContext* ctx) {
   }
 }
 
-primitive::CopyNd* SliceBoxingKernel::copy_nd_primitive() const { return copy_nd_primitive_.get(); }
+primitive::MemoryCopyNd* SliceBoxingKernel::copy_nd_primitive() const {
+  return copy_nd_primitive_.get();
+}
 
 const std::vector<std::shared_ptr<TensorSliceCopier>>& SliceBoxingKernel::tensor_slice_copier_vec()
     const {
@@ -87,8 +89,11 @@ const SliceBoxingConf& SliceBoxingCopyKernel::GetCustomizedBoxingConf() const {
 
 void SliceBoxingCopyKernel::ForwardDataContent(KernelContext* ctx) const {
   Blob* out = ctx->BnInOp2Blob("out");
+  LOG(ERROR) << "run SliceBoxingCopyKernel " << this->op_conf().name() << " out shape "
+             << out->shape().ToString();
   FOR_RANGE(int64_t, i, 0, this->op_attribute().input_bns().size()) {
     const Blob* in_i = ctx->BnInOp2Blob(GenRepeatedBn("in", i));
+    LOG(ERROR) << i << " in shape " << in_i->shape().ToString();
     this->tensor_slice_copier_vec().at(i)->Copy(ctx->stream_ctx(), *this->copy_nd_primitive(), out,
                                                 in_i);
   }
@@ -100,6 +105,8 @@ const SliceBoxingConf& SliceBoxingAddKernel::GetCustomizedBoxingConf() const {
 
 void SliceBoxingAddKernel::ForwardDataContent(KernelContext* ctx) const {
   Blob* out = ctx->BnInOp2Blob("out");
+  LOG(ERROR) << "run SliceBoxingAddKernel " << this->op_conf().name() << " out shape "
+             << out->shape().ToString();
   std::unique_ptr<primitive::Add> primitive_ = primitive::NewPrimitive<primitive::AddFactory>(
       ctx->stream_ctx()->device_type(), out->data_type());
   CHECK(primitive_);
