@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "oneflow/core/primitive/memory_copy_nd.h"
+#include "oneflow/core/primitive/include/memory_copy_nd.h"
 #include "oneflow/core/stream/cuda_stream_context.h"
 #include "oneflow/core/primitive/cuda/cuda_graph_support.h"
 #include <cuda_runtime.h>

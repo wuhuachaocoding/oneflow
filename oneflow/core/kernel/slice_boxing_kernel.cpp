@@ -16,8 +16,8 @@ limitations under the License.
 #include "oneflow/core/kernel/kernel.h"
 #include "oneflow/core/register/tensor_slice_copier.h"
 #include "oneflow/core/operator/operator.h"
-#include "oneflow/core/primitive/add.h"
-#include "oneflow/core/primitive/memory_copy_nd.h"
+#include "oneflow/core/primitive/include/add.h"
+#include "oneflow/core/primitive/include/memory_copy_nd.h"
 
 namespace oneflow {
 

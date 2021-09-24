@@ -20,7 +20,7 @@ limitations under the License.
 #include "oneflow/core/register/tensor_slice_view.h"
 #include "oneflow/core/register/blob.h"
 #include "oneflow/core/device/memory_copier.h"
-#include "oneflow/core/primitive/memory_copy_nd.h"
+#include "oneflow/core/primitive/include/memory_copy_nd.h"
 
 namespace oneflow {
 

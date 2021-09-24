@@ -16,7 +16,7 @@ limitations under the License.
 #ifndef ONEFLOW_CORE_PRIMITIVE_MEMORY_COPY_ND_H_
 #define ONEFLOW_CORE_PRIMITIVE_MEMORY_COPY_ND_H_
 
-#include "oneflow/core/primitive/primitive.h"
+#include "oneflow/core/primitive/include/primitive.h"
 
 namespace oneflow {
 
