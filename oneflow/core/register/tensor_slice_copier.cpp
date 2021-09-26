@@ -51,7 +51,7 @@ TensorSliceCopier::TensorSliceCopier(const TensorSliceView& dst_view,
   raw_copy_desc.src_pos = copy_raw_view.OffsetTo(src_raw_view);
   raw_copy_desc.extent = copy_raw_view.shape();
   memory_copy_nd_desc_ = raw_copy_desc.CreateDimReducedDesc();
-  if(copy_raw_view.shape().NumAxes() == 0) {
+  if (copy_raw_view.shape().NumAxes() == 0) {
     memory_copy_nd_desc_.data_type = data_type;
   } else {
     memory_copy_nd_desc_.data_type = DataType::kChar;
@@ -67,14 +67,14 @@ void TensorSliceCopier::Copy(DeviceCtx* ctx, const MemoryCopier& copier, void* d
   copier.Copy(ctx, dst, src, memory_copy_nd_desc_);
 }
 
-void TensorSliceCopier::Copy(StreamContext* stream_ctx, const primitive::MemoryCopyNd& copier,
+void TensorSliceCopier::Copy(StreamContext* stream_ctx, const primitive::CopyNd& copier,
                              void* dst, const void* src) const {
-  copier.Launch(stream_ctx, DataType::kChar, memory_copy_nd_desc_.dst_shape.NumAxes(), dst,
-                memory_copy_nd_desc_.dst_shape.dim_vec().data(),
-                memory_copy_nd_desc_.dst_pos.dim_vec().data(), src,
-                memory_copy_nd_desc_.src_shape.dim_vec().data(),
-                memory_copy_nd_desc_.src_pos.dim_vec().data(),
-                memory_copy_nd_desc_.extent.dim_vec().data());
+  copier.Launch(
+      stream_ctx, memory_copy_nd_desc_.data_type, memory_copy_nd_desc_.dst_shape.NumAxes(), dst,
+      memory_copy_nd_desc_.dst_shape.dim_vec().data(),
+      memory_copy_nd_desc_.dst_pos.dim_vec().data(), src,
+      memory_copy_nd_desc_.src_shape.dim_vec().data(),
+      memory_copy_nd_desc_.src_pos.dim_vec().data(), memory_copy_nd_desc_.extent.dim_vec().data());
 }
 
 void TensorSliceCopier::Copy(DeviceCtx* ctx, const MemoryCopier& copier, Blob* dst_blob,
@@ -86,7 +86,7 @@ void TensorSliceCopier::Copy(DeviceCtx* ctx, const MemoryCopier& copier, Blob* d
   Copy(ctx, copier, dst_blob->mut_dptr(), src_blob->dptr());
 }
 
-void TensorSliceCopier::Copy(StreamContext* stream_ctx, const primitive::MemoryCopyNd& copier,
+void TensorSliceCopier::Copy(StreamContext* stream_ctx, const primitive::CopyNd& copier,
                              Blob* dst_blob, const Blob* src_blob) const {
   CHECK_EQ(dst_blob->data_type(), data_type_);
   CHECK_EQ(src_blob->data_type(), data_type_);
