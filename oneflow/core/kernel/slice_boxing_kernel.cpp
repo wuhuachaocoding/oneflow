@@ -93,26 +93,22 @@ const SliceBoxingConf& SliceBoxingAddKernel::GetCustomizedBoxingConf() const {
 
 void SliceBoxingAddKernel::ForwardDataContent(KernelContext* ctx) const {
   Blob* out = ctx->BnInOp2Blob("out");
-  std::unique_ptr<primitive::Add> primitive_ = primitive::NewPrimitive<primitive::AddFactory>(
+  std::unique_ptr<primitive::Add> primitive = primitive::NewPrimitive<primitive::AddFactory>(
       ctx->stream_ctx()->device_type(), out->data_type());
-  CHECK(primitive_);
+  CHECK(primitive);
   FOR_RANGE(int64_t, i, 0, this->op_attribute().input_bns().size()) {
     const Blob* in_i = ctx->BnInOp2Blob(GenRepeatedBn("in", i));
     if (i == 0) {
       this->tensor_slice_copier_vec().at(i)->Copy(ctx->stream_ctx(), out, in_i);
     } else {
       if (in_i->shape() == out->shape()) {
-        const void* srcs[2];
-        srcs[0] = in_i->dptr();
-        srcs[1] = out->dptr();
-        primitive_->Launch(ctx->stream_ctx(), srcs, 2, out->mut_dptr(), out->shape().elem_cnt());
+        primitive->Launch(ctx->stream_ctx(), in_i->dptr(), out->dptr(), out->mut_dptr(),
+                          out->shape().elem_cnt());
       } else {
         Blob* buf = ctx->BnInOp2Blob("buf");
         this->tensor_slice_copier_vec().at(i)->Copy(ctx->stream_ctx(), buf, in_i);
-        const void* srcs[2];
-        srcs[0] = buf->dptr();
-        srcs[1] = out->dptr();
-        primitive_->Launch(ctx->stream_ctx(), srcs, 2, out->mut_dptr(), out->shape().elem_cnt());
+        primitive->Launch(ctx->stream_ctx(), buf->dptr(), out->dptr(), out->mut_dptr(),
+                          out->shape().elem_cnt());
       }
     }
   }
