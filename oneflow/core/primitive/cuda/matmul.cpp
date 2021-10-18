@@ -21,6 +21,7 @@ limitations under the License.
 #include "oneflow/core/primitive/include/broadcast_matmul.h"
 #include "oneflow/core/common/optional.h"
 #include "oneflow/core/device/cuda_util.h"
+#include <cuda.h>
 
 namespace oneflow {
 
@@ -33,7 +34,9 @@ Optional<cudaDataType_t> GetCudaDataType(DataType data_type) {
     case kFloat: return CUDA_R_32F;
     case kDouble: return CUDA_R_64F;
     case kFloat16: return CUDA_R_16F;
+#if CUDA_VERSION >= 11000
     case kBFloat16: return CUDA_R_16BF;
+#endif  // CUDA_VERSION >= 11000
     default: return NullOpt;
   }
 }
