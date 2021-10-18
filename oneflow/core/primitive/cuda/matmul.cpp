@@ -28,15 +28,6 @@ namespace primitive {
 
 namespace {
 
-constexpr size_t kMaxNumDims = 8;
-
-void SimplifyBroadcastMatmul(size_t num_a_dims, int64_t* a_dims,
-                             const void* a, size_t num_b_dims, int64_t* b_dims) {
-
-}
-
-}
-
 Optional<cudaDataType_t> GetCudaDataType(DataType data_type) {
   switch (data_type) {
     case kFloat: return CUDA_R_32F;
@@ -46,6 +37,80 @@ Optional<cudaDataType_t> GetCudaDataType(DataType data_type) {
     default: return NullOpt;
   }
 }
+
+constexpr size_t kMaxNumDims = 8;
+
+void SimplifyBroadcastMatmul(size_t num_a_dims, const int64_t* a_dims, size_t num_b_dims,
+                             const int64_t* b_dims, BlasTransposeType transpose_a,
+                             BlasTransposeType transpose_b, int64_t* m, int64_t* n, int64_t* k,
+                             int64_t* num_batch_dims, int64_t* a_batch_dims,
+                             int64_t* b_batch_dims) {
+  CHECK_GE(num_a_dims, 2);
+  CHECK_GE(num_b_dims, 2);
+  if (transpose_a == BlasTransposeType::N) {
+    *m = a_dims[num_a_dims - 2];
+    *k = a_dims[num_a_dims - 1];
+  } else if (transpose_a == BlasTransposeType::T) {
+    *m = a_dims[num_a_dims - 1];
+    *k = a_dims[num_a_dims - 2];
+  } else {
+    UNIMPLEMENTED();
+  }
+  if (transpose_b == BlasTransposeType::N) {
+    CHECK_EQ(b_dims[num_b_dims - 2], *k);
+    *n = b_dims[num_b_dims - 1];
+  } else if (transpose_b == BlasTransposeType::T) {
+    CHECK_EQ(b_dims[num_b_dims - 1], *k);
+    *n = b_dims[num_b_dims - 2];
+  } else {
+    UNIMPLEMENTED();
+  }
+  const int64_t num_a_batch_dims = num_a_dims - 2;
+  const int64_t num_b_batch_dims = num_b_dims - 2;
+  const int64_t num_max_batch_dims = std::max(num_a_batch_dims, num_b_batch_dims);
+  const int64_t num_a_padding_dims = num_max_batch_dims - num_a_batch_dims;
+  const int64_t num_b_padding_dims = num_max_batch_dims - num_b_batch_dims;
+  *num_batch_dims = 0;
+  for (int64_t i = 0; i < num_max_batch_dims; ++i) {
+    const int64_t a_dim = i < num_a_padding_dims ? 1 : a_dims[i - num_a_padding_dims];
+    const int64_t b_dim = i < num_b_padding_dims ? 1 : b_dims[i - num_b_padding_dims];
+    if (a_dim == 1 && b_dim == 1) {
+      continue;
+    } else if (*num_batch_dims != 0
+               && ((a_dim == 1 && a_batch_dims[*num_batch_dims - 1] == 1)
+                   || (b_dim == 1 && b_batch_dims[*num_batch_dims - 1] == 1)
+                   || (a_dim == b_dim
+                       && a_batch_dims[*num_batch_dims - 1]
+                              == b_batch_dims[*num_batch_dims - 1]))) {
+      a_batch_dims[*num_batch_dims - 1] *= a_dim;
+      b_batch_dims[*num_batch_dims - 1] *= b_dim;
+    } else {
+      CHECK(a_dim == b_dim || a_dim == 1 || b_dim == 1);
+      a_batch_dims[*num_batch_dims] = a_dim;
+      b_batch_dims[*num_batch_dims] = b_dim;
+      *num_batch_dims += 1;
+    }
+  }
+  if (*num_batch_dims == 1 && a_batch_dims[0] != 1 && b_batch_dims[0] == 1
+      && transpose_a != BlasTransposeType::N) {
+    *m *= a_batch_dims[0];
+    *num_batch_dims = 0;
+  }
+}
+
+void DoMatmul(StreamContext* stream_ctx, DataType data_type, int64_t m, int64_t n, int64_t k,
+              Scalar alpha, const void* a, const void* b, Scalar beta, void* c) {}
+
+void DoBatchMatmul(StreamContext* stream_ctx, DataType data_type, int64_t num_a_batches,
+                   int64_t num_b_batches, int64_t m, int64_t n, int64_t k, Scalar alpha,
+                   const void* a, const void* b, Scalar beta, void* c) {}
+
+void DoBroadcastMatmul(StreamContext* stream_ctx, DataType data_type, int64_t num_batch_dims,
+                       const int64_t* a_batch_dims, const int64_t* b_batch_dims, int64_t m,
+                       int64_t n, int64_t k, Scalar alpha, const void* a, const void* b,
+                       Scalar beta, void* c) {}
+
+}  // namespace
 
 class BroadcastMatmulImpl : public BroadcastMatmul {
  public:
@@ -61,9 +126,26 @@ class BroadcastMatmulImpl : public BroadcastMatmul {
   BlasTransposeType transpose_a() const override { return transpose_a_; }
   virtual BlasTransposeType transpose_b() const override { return transpose_b_; }
 
-  void Launch(StreamContext* stream_ctx, Scalar alpha, size_t num_a_dims, int64_t* a_dims,
-              const void* a, size_t num_b_dims, int64_t* b_dims, const void* b, Scalar beta,
-              void* c) override {}
+  void Launch(StreamContext* stream_ctx, Scalar alpha, size_t num_a_dims, const int64_t* a_dims,
+              const void* a, size_t num_b_dims, const int64_t* b_dims, const void* b, Scalar beta,
+              void* c) override {
+    int64_t m = 0;
+    int64_t n = 0;
+    int64_t k = 0;
+    int64_t num_batch_dims = 0;
+    int64_t a_batch_dims[kMaxNumDims]{};
+    int64_t b_batch_dims[kMaxNumDims]{};
+    SimplifyBroadcastMatmul(num_a_dims, a_dims, num_b_dims, b_dims, transpose_a_, transpose_b_, &m,
+                            &n, &k, &num_batch_dims, a_batch_dims, b_batch_dims);
+    if (num_batch_dims == 0) {
+      DoMatmul(stream_ctx, data_type_, m, n, k, alpha, a, b, beta, c);
+    } else if (num_batch_dims == 1) {
+      DoBatchMatmul(stream_ctx, data_type_, a_batch_dims[0], b_batch_dims[0], m, n, k, alpha, a, b,
+                    beta, c);
+    } else {
+      // DoBroadcastMatmul();
+    }
+  }
 
  private:
   DataType data_type_;
