@@ -92,9 +92,9 @@ void LaunchCublasBroadcastMatmul(StreamContext* stream_ctx, DataType data_type,
   const auto sp_beta = GetCublasScalarParameter(beta, cublas_compute_type);
   const auto GetCublasOperation = [](BlasTransposeType transpose_type) {
     if (transpose_type == BlasTransposeType::N) {
-      return CUBLAS_OP_T;
-    } else if (transpose_type == BlasTransposeType::T) {
       return CUBLAS_OP_N;
+    } else if (transpose_type == BlasTransposeType::T) {
+      return CUBLAS_OP_T;
     } else {
       UNIMPLEMENTED();
       return CUBLAS_OP_N;
@@ -277,6 +277,7 @@ class BroadcastMatmulImpl : public Matmul, public BatchMatmul, public BroadcastM
   BlasTransposeType transpose_a() const override { return transpose_a_; }
   virtual BlasTransposeType transpose_b() const override { return transpose_b_; }
 
+  // Matmul
   void Launch(StreamContext* stream_ctx, size_t m, size_t n, size_t k, Scalar alpha, const void* a,
               const void* b, Scalar beta, void* c) override {
     Launch(stream_ctx, 1, m, n, k, alpha, a, b, beta, c);
