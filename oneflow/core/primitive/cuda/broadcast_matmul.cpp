@@ -16,9 +16,8 @@ limitations under the License.
 #ifdef WITH_CUDA
 
 #include "oneflow/core/primitive/include/primitive.h"
-#include "oneflow/core/primitive/include/matmul.h"
-#include "oneflow/core/primitive/include/batch_matmul.h"
 #include "oneflow/core/primitive/include/broadcast_matmul.h"
+#include "oneflow/core/primitive/common/broadcast_matmul.h"
 #include "oneflow/core/common/optional.h"
 #include "oneflow/core/device/cuda_util.h"
 #include "oneflow/core/stream/cuda_stream_context.h"
@@ -261,9 +260,7 @@ void SimplifyBroadcastMatmul(size_t num_a_dims, const int64_t* a_dims, size_t nu
   }
 }
 
-}  // namespace
-
-class BroadcastMatmulImpl : public Matmul, public BatchMatmul, public BroadcastMatmul {
+class BroadcastMatmulImpl : public BroadcastMatmul {
  public:
   OF_DISALLOW_COPY_AND_MOVE(BroadcastMatmulImpl);
   BroadcastMatmulImpl(DataType data_type, BlasTransposeType transpose_a,
@@ -271,47 +268,6 @@ class BroadcastMatmulImpl : public Matmul, public BatchMatmul, public BroadcastM
       : data_type_(data_type), transpose_a_(transpose_a), transpose_b_(transpose_b) {}
   ~BroadcastMatmulImpl() override = default;
 
-  DataType a_type() const override { return data_type_; }
-  DataType b_type() const override { return data_type_; }
-  DataType c_type() const override { return data_type_; }
-  BlasTransposeType transpose_a() const override { return transpose_a_; }
-  virtual BlasTransposeType transpose_b() const override { return transpose_b_; }
-
-  // Matmul
-  void Launch(StreamContext* stream_ctx, size_t m, size_t n, size_t k, Scalar alpha, const void* a,
-              const void* b, Scalar beta, void* c) override {
-    Launch(stream_ctx, 1, m, n, k, alpha, a, b, beta, c);
-  }
-
-  // BatchMatmul
-  void Launch(StreamContext* stream_ctx, size_t num_batches, size_t m, size_t n, size_t k,
-              Scalar alpha, const void* a, const void* b, Scalar beta, void* c) override {
-    int64_t a_dims[3];
-    int64_t b_dims[3];
-    a_dims[0] = num_batches;
-    b_dims[0] = num_batches;
-    if (transpose_a_ == BlasTransposeType::N) {
-      a_dims[1] = m;
-      a_dims[2] = k;
-    } else if (transpose_a_ == BlasTransposeType::T) {
-      a_dims[1] = k;
-      a_dims[2] = m;
-    } else {
-      UNIMPLEMENTED();
-    }
-    if (transpose_b_ == BlasTransposeType::N) {
-      b_dims[1] = k;
-      b_dims[2] = n;
-    } else if (transpose_b_ == BlasTransposeType::T) {
-      b_dims[1] = n;
-      b_dims[2] = k;
-    } else {
-      UNIMPLEMENTED();
-    }
-    Launch(stream_ctx, alpha, 3, a_dims, a, 3, b_dims, b, beta, c);
-  }
-
-  // BroadcastMatmul
   void Launch(StreamContext* stream_ctx, Scalar alpha, size_t num_a_dims, const int64_t* a_dims,
               const void* a, size_t num_b_dims, const int64_t* b_dims, const void* b, Scalar beta,
               void* c) override {
@@ -321,8 +277,8 @@ class BroadcastMatmulImpl : public Matmul, public BatchMatmul, public BroadcastM
     int64_t num_batch_dims = 0;
     int64_t a_batch_dims[kMaxNumDims]{};
     int64_t b_batch_dims[kMaxNumDims]{};
-    SimplifyBroadcastMatmul(num_a_dims, a_dims, num_b_dims, b_dims, transpose_a_, transpose_b_, &m,
-                            &n, &k, &num_batch_dims, a_batch_dims, b_batch_dims);
+    broadcast_matmul::Simplify(num_a_dims, a_dims, num_b_dims, b_dims, transpose_a_, transpose_b_,
+                               &m, &n, &k, &num_batch_dims, a_batch_dims, b_batch_dims);
     LaunchCublasBroadcastMatmul(stream_ctx, data_type_, transpose_a_, transpose_b_, num_batch_dims,
                                 a_batch_dims, b_batch_dims, m, n, k, alpha, a, b, beta, c);
   }
@@ -332,44 +288,6 @@ class BroadcastMatmulImpl : public Matmul, public BatchMatmul, public BroadcastM
   BlasTransposeType transpose_a_;
   BlasTransposeType transpose_b_;
 };
-
-class MatmulFactoryImpl : public MatmulFactory {
- public:
-  OF_DISALLOW_COPY_AND_MOVE(MatmulFactoryImpl);
-  MatmulFactoryImpl() = default;
-  ~MatmulFactoryImpl() override = default;
-
-  std::unique_ptr<Matmul> New(DataType data_type, BlasTransposeType transpose_a,
-                              BlasTransposeType transpose_b) override {
-    auto cuda_data_type = OptCudaDataType(data_type);
-    if (cuda_data_type.has_value()) {
-      return std::make_unique<BroadcastMatmulImpl>(data_type, transpose_a, transpose_b);
-    } else {
-      return nullptr;
-    }
-  }
-};
-
-REGISTER_PRIMITIVE_FACTORY(DeviceType::kGPU, MatmulFactory, MatmulFactoryImpl);
-
-class BatchMatmulFactoryImpl : public BatchMatmulFactory {
- public:
-  OF_DISALLOW_COPY_AND_MOVE(BatchMatmulFactoryImpl);
-  BatchMatmulFactoryImpl() = default;
-  ~BatchMatmulFactoryImpl() override = default;
-
-  std::unique_ptr<BatchMatmul> New(DataType data_type, BlasTransposeType transpose_a,
-                                   BlasTransposeType transpose_b) override {
-    auto cuda_data_type = OptCudaDataType(data_type);
-    if (cuda_data_type.has_value()) {
-      return std::make_unique<BroadcastMatmulImpl>(data_type, transpose_a, transpose_b);
-    } else {
-      return nullptr;
-    }
-  }
-};
-
-REGISTER_PRIMITIVE_FACTORY(DeviceType::kGPU, BatchMatmulFactory, BatchMatmulFactoryImpl);
 
 class BroadcastMatmulFactoryImpl : public BroadcastMatmulFactory {
  public:
@@ -390,6 +308,8 @@ class BroadcastMatmulFactoryImpl : public BroadcastMatmulFactory {
 };
 
 REGISTER_PRIMITIVE_FACTORY(DeviceType::kGPU, BroadcastMatmulFactory, BroadcastMatmulFactoryImpl);
+
+}  // namespace
 
 }  // namespace primitive
 
