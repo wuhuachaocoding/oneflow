@@ -122,6 +122,11 @@ void LaunchCublasBroadcastMatmul(StreamContext* stream_ctx, DataType data_type,
     UNIMPLEMENTED();
   }
   const int cublas_ldc = n;
+#if CUDA_VERSION >= 11000
+  cublasGemmAlgo_t algo = CUBLAS_GEMM_DEFAULT;
+#else
+  cublasGemmAlgo_t algo = CUBLAS_GEMM_DFALT_TENSOR_OP;
+#endif
   if (num_batch_dims == 0) {
     const void* cublas_a = b;
     const void* cublas_b = a;
@@ -129,8 +134,7 @@ void LaunchCublasBroadcastMatmul(StreamContext* stream_ctx, DataType data_type,
     OF_CUBLAS_CHECK(cublasGemmEx(cuda_stream_ctx->cublas_handle(), cublas_trans_a, cublas_trans_b,
                                  cublas_m, cublas_n, cublas_k, &sp_alpha, cublas_a, cuda_data_type,
                                  cublas_lda, cublas_b, cuda_data_type, cublas_ldb, &sp_beta,
-                                 cublas_c, cuda_data_type, cublas_ldc, cublas_compute_type,
-                                 CUBLAS_GEMM_DEFAULT));
+                                 cublas_c, cuda_data_type, cublas_ldc, cublas_compute_type, algo));
   } else if (num_batch_dims == 1) {
     const void* cublas_a = b;
     const void* cublas_b = a;
@@ -148,7 +152,7 @@ void LaunchCublasBroadcastMatmul(StreamContext* stream_ctx, DataType data_type,
         cuda_stream_ctx->cublas_handle(), cublas_trans_a, cublas_trans_b, cublas_m, cublas_n,
         cublas_k, &sp_alpha, cublas_a, cuda_data_type, cublas_lda, cublas_stride_a, cublas_b,
         cuda_data_type, cublas_ldb, cublas_stride_b, &sp_beta, cublas_c, cuda_data_type, cublas_ldc,
-        cublas_stride_c, batch_count, cublas_compute_type, CUBLAS_GEMM_DEFAULT));
+        cublas_stride_c, batch_count, cublas_compute_type, algo));
   } else {
     const int64_t stride_a = m * k;
     const int64_t stride_b = k * n;
@@ -191,11 +195,10 @@ void LaunchCublasBroadcastMatmul(StreamContext* stream_ctx, DataType data_type,
           static_cast<const unsigned char*>(a) + a_batch_offset * stride_a * size_of_data_type;
       void* cublas_c =
           static_cast<unsigned char*>(c) + c_batch_offset * stride_c * size_of_data_type;
-      OF_CUBLAS_CHECK(cublasGemmEx(cuda_stream_ctx->cublas_handle(), cublas_trans_a, cublas_trans_b,
-                                   cublas_m, cublas_n, cublas_k, &sp_alpha, cublas_a,
-                                   cuda_data_type, cublas_lda, cublas_b, cuda_data_type, cublas_ldb,
-                                   &sp_beta, cublas_c, cuda_data_type, cublas_ldc,
-                                   cublas_compute_type, CUBLAS_GEMM_DEFAULT));
+      OF_CUBLAS_CHECK(cublasGemmEx(
+          cuda_stream_ctx->cublas_handle(), cublas_trans_a, cublas_trans_b, cublas_m, cublas_n,
+          cublas_k, &sp_alpha, cublas_a, cuda_data_type, cublas_lda, cublas_b, cuda_data_type,
+          cublas_ldb, &sp_beta, cublas_c, cuda_data_type, cublas_ldc, cublas_compute_type, algo));
     }
   }
 }
