@@ -41,6 +41,86 @@ Optional<cudaDataType_t> GetCudaDataType(DataType data_type) {
   }
 }
 
+Optional<cublasComputeType_t> GetComputeType(DataType data_type) {
+  switch (data_type) {
+    case kFloat: return CUBLAS_COMPUTE_32F;
+    case kDouble: return CUBLAS_COMPUTE_64F;
+    case kFloat16: return CUBLAS_COMPUTE_32F;
+#if CUDA_VERSION >= 11000
+    case kBFloat16: return CUBLAS_COMPUTE_32F;
+#endif  // CUDA_VERSION >= 11000
+    default: return NullOpt;
+  }
+}
+
+void GetCublasGemmExArgs(BlasTransposeType transpose_a, BlasTransposeType transpose_b,
+                         int64_t num_a_batches, int64_t num_b_batches, int64_t m, int64_t n,
+                         int64_t k, const void* a, const void* b, cublasOperation_t* cublas_trans_a,
+                         cublasOperation_t* cublas_trans_b, int* cublas_m, int* cublas_n,
+                         int* cublas_k, const void** cublas_a, int* cublas_lda,
+                         long long int* cublas_stride_a, const void** cublas_b, int* cublas_ldb,
+                         long long int* cublas_stride_b, int* cublas_ldc,
+                         long long int* cublas_stride_c) {
+  CHECK(num_a_batches == 1 || num_b_batches == 1 || num_a_batches == num_b_batches);
+  const auto ToCublasOperation = [](BlasTransposeType transpose_type,
+                                    cublasOperation_t* cublas_trans) {
+    if (transpose_type == BlasTransposeType::N) {
+      *cublas_trans = CUBLAS_OP_T;
+    } else if (transpose_type == BlasTransposeType::T) {
+      *cublas_trans = CUBLAS_OP_N;
+    } else {
+      UNIMPLEMENTED();
+    }
+  };
+  if (cublas_trans_a != nullptr) { ToCublasOperation(transpose_b, cublas_trans_a); }
+  if (cublas_trans_b != nullptr) { ToCublasOperation(transpose_a, cublas_trans_b); }
+  if (cublas_m != nullptr) { *cublas_m = n; }
+  if (cublas_n != nullptr) { *cublas_n = m; }
+  if (cublas_k != nullptr) { *cublas_k = k; }
+  if (cublas_a != nullptr) { *cublas_a = b; }
+  if (cublas_lda != nullptr) {
+    if (transpose_b == BlasTransposeType::N) {
+      *cublas_lda = n;
+    } else if (transpose_b == BlasTransposeType::T) {
+      *cublas_lda = k;
+    } else {
+      UNIMPLEMENTED();
+    }
+  }
+  if (cublas_stride_a != nullptr) {
+    if (num_b_batches == 1) {
+      *cublas_stride_a = 0;
+    } else {
+      *cublas_stride_a = n * k;
+    }
+  }
+  if (cublas_b != nullptr) { *cublas_b = a; }
+  if (cublas_ldb != nullptr) {
+    if (transpose_a == BlasTransposeType::N) {
+      *cublas_ldb = k;
+    } else if (transpose_a == BlasTransposeType::T) {
+      *cublas_ldb = m;
+    } else {
+      UNIMPLEMENTED();
+    }
+  }
+  if (cublas_stride_b != nullptr) {
+    if (num_a_batches == 1) {
+      *cublas_stride_b = 0;
+    } else {
+      *cublas_stride_b = k * m;
+    }
+  }
+  if (cublas_ldc != nullptr) { *cublas_ldc = n; }
+  if (cublas_stride_c != nullptr) {
+    if (num_a_batches == 1 && num_b_batches == 1) {
+      *cublas_stride_c = 0;
+    } else {
+      *cublas_stride_c = n * m;
+    }
+  }
+}
+
 constexpr size_t kMaxNumDims = 8;
 
 void SimplifyBroadcastMatmul(size_t num_a_dims, const int64_t* a_dims, size_t num_b_dims,
@@ -94,10 +174,10 @@ void SimplifyBroadcastMatmul(size_t num_a_dims, const int64_t* a_dims, size_t nu
       *num_batch_dims += 1;
     }
   }
-  if (*num_batch_dims == 1 && a_batch_dims[0] != 1 && b_batch_dims[0] == 1
-      && transpose_a != BlasTransposeType::N) {
-    *m *= a_batch_dims[0];
-    *num_batch_dims = 0;
+  if (*num_batch_dims >= 1 && a_batch_dims[*num_batch_dims - 1] != 1
+      && b_batch_dims[*num_batch_dims - 1] == 1 && transpose_a == BlasTransposeType::N) {
+    *m *= a_batch_dims[*num_batch_dims - 1];
+    *num_batch_dims -= 1;
   }
 }
 
