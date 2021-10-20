@@ -22,8 +22,18 @@ limitations under the License.
 #include "oneflow/core/common/id_util.h"
 #include "oneflow/core/graph/id_serialization.h"
 #include "oneflow/core/device/stream_index.h"
+#include "oneflow/core/primitive/include/copy_nd.h"
 
 namespace oneflow {
+
+namespace {
+
+bool IsCopyNdPrimitiveSupported(DeviceType device_type, int64_t ndims) {
+  auto primitive = primitive::NewPrimitive<primitive::CopyNdFactory>(device_type, ndims);
+  return primitive.operator bool();
+}
+
+}  // namespace
 
 Maybe<SubTskGphBuilderStatus> SliceBoxingSubTskGphBuilder::Build(
     SubTskGphBuilderCtx* ctx, const std::vector<TaskNode*>& sorted_in_tasks,
@@ -205,50 +215,84 @@ Maybe<SubTskGphBuilderStatus> SliceBoxingSubTskGphBuilder::Build(
         }
       };
 
-  std::string comment;
-  if (SubTskGphBuilderUtil::IsBoxingS2B(in_sbp_parallel, out_sbp_parallel)) {
-    BuildSubTaskGphS2B(in_parallel_desc, out_parallel_desc, in_sbp_parallel, out_sbp_parallel,
-                       logical_blob_desc, sorted_in_tasks, sorted_out_tasks);
-    comment = "BuildSubTaskGphS2B";
-  } else if (SubTskGphBuilderUtil::IsBoxingS2S(in_sbp_parallel, out_sbp_parallel)) {
-    BuildSubTaskGphS2S(in_parallel_desc, out_parallel_desc, in_sbp_parallel, out_sbp_parallel,
-                       logical_blob_desc, sorted_in_tasks, sorted_out_tasks);
-    comment = "BuildSubTaskGphS2S";
-  } else if (SubTskGphBuilderUtil::IsBoxingP2S(in_sbp_parallel, out_sbp_parallel)) {
-    BuildSubTaskGphP2S(in_parallel_desc, out_parallel_desc, in_sbp_parallel, out_sbp_parallel,
-                       logical_blob_desc, sorted_in_tasks, sorted_out_tasks);
-    comment = "BuildSubTaskGphP2S";
-  } else if (SubTskGphBuilderUtil::IsBoxingP2B(in_sbp_parallel, out_sbp_parallel)) {
-    if (logical_blob_desc.shape().elem_cnt() < out_parallel_desc.parallel_num()) {
-      BuildSubTaskGphP2B(in_parallel_desc, out_parallel_desc, in_sbp_parallel, out_sbp_parallel,
-                         logical_blob_desc, sorted_in_tasks, sorted_out_tasks);
-      comment = "BuildSubTaskGphP2B";
-    } else {
-      BlobDesc flat_blob_desc(logical_blob_desc.data_type());
-      flat_blob_desc.mut_shape() = Shape({logical_blob_desc.shape().elem_cnt()});
-      std::vector<TaskNode*> middle_nodes;
-      cfg::SbpParallel middle_sbp;
-      middle_sbp.mutable_split_parallel()->set_axis(0);
-      BuildSubTaskGphP2S(in_parallel_desc, out_parallel_desc, in_sbp_parallel, middle_sbp,
-                         flat_blob_desc, sorted_in_tasks, &middle_nodes);
-      BuildSubTaskGphS2B(out_parallel_desc, out_parallel_desc, middle_sbp, out_sbp_parallel,
-                         flat_blob_desc, middle_nodes, sorted_out_tasks);
-      comment = "BuildSubTaskGphP2S->BuildSubTaskGphS2B";
-      for (TaskNode* out_node : *sorted_out_tasks) {
-        auto* slice_boxing_node = dynamic_cast<SliceBoxingTaskNode*>(out_node);
-        CHECK_NOTNULL(slice_boxing_node);
-        slice_boxing_node->SetOutShape(logical_blob_desc.shape());
+  const auto BuildSubTaskGphSliceBoxing =
+      [&BuildSubTaskGphS2B, &BuildSubTaskGphS2S, &BuildSubTaskGphP2S, &BuildSubTaskGphP2B,
+       &BuildSubTaskGphB2S](const ParallelDesc& in_pd, const ParallelDesc& out_pd,
+                            const cfg::SbpParallel& in_sbp, const cfg::SbpParallel& out_sbp,
+                            const BlobDesc& blob_desc, const std::vector<TaskNode*>& in_nodes,
+                            std::vector<TaskNode*>* out_nodes) -> std::string {
+    std::string comment;
+    if (SubTskGphBuilderUtil::IsBoxingS2B(in_sbp, out_sbp)) {
+      BuildSubTaskGphS2B(in_pd, out_pd, in_sbp, out_sbp, blob_desc, in_nodes, out_nodes);
+      comment = "BuildSubTaskGphS2B";
+    } else if (SubTskGphBuilderUtil::IsBoxingS2S(in_sbp, out_sbp)) {
+      BuildSubTaskGphS2S(in_pd, out_pd, in_sbp, out_sbp, blob_desc, in_nodes, out_nodes);
+      comment = "BuildSubTaskGphS2S";
+    } else if (SubTskGphBuilderUtil::IsBoxingP2S(in_sbp, out_sbp)) {
+      BuildSubTaskGphP2S(in_pd, out_pd, in_sbp, out_sbp, blob_desc, in_nodes, out_nodes);
+      comment = "BuildSubTaskGphP2S";
+    } else if (SubTskGphBuilderUtil::IsBoxingP2B(in_sbp, out_sbp)) {
+      if (blob_desc.shape().elem_cnt() < out_pd.parallel_num()) {
+        BuildSubTaskGphP2B(in_pd, out_pd, in_sbp, out_sbp, blob_desc, in_nodes, out_nodes);
+        comment = "BuildSubTaskGphP2B";
+      } else {
+        BlobDesc flat_blob_desc(blob_desc.data_type());
+        flat_blob_desc.mut_shape() = Shape({blob_desc.shape().elem_cnt()});
+        std::vector<TaskNode*> middle_nodes;
+        cfg::SbpParallel middle_sbp;
+        middle_sbp.mutable_split_parallel()->set_axis(0);
+        BuildSubTaskGphP2S(in_pd, out_pd, in_sbp, middle_sbp, flat_blob_desc, in_nodes,
+                           &middle_nodes);
+        BuildSubTaskGphS2B(out_pd, out_pd, middle_sbp, out_sbp, flat_blob_desc, middle_nodes,
+                           out_nodes);
+        comment = "BuildSubTaskGphP2S->BuildSubTaskGphS2B";
+        for (TaskNode* out_node : *out_nodes) {
+          auto* slice_boxing_node = dynamic_cast<SliceBoxingTaskNode*>(out_node);
+          CHECK_NOTNULL(slice_boxing_node);
+          slice_boxing_node->SetOutShape(blob_desc.shape());
+        }
       }
+    } else if (SubTskGphBuilderUtil::IsBoxingB2S(in_sbp, out_sbp)) {
+      BuildSubTaskGphB2S(in_pd, out_pd, in_sbp, out_sbp, blob_desc, in_nodes, out_nodes);
+      comment = "BuildSubTaskGphB2S";
+    } else {
+      UNIMPLEMENTED();
     }
+    return comment;
+  };
 
-  } else if (SubTskGphBuilderUtil::IsBoxingB2S(in_sbp_parallel, out_sbp_parallel)) {
-    BuildSubTaskGphB2S(in_parallel_desc, out_parallel_desc, in_sbp_parallel, out_sbp_parallel,
-                       logical_blob_desc, sorted_in_tasks, sorted_out_tasks);
-    comment = "BuildSubTaskGphB2S";
-  } else {
-    UNIMPLEMENTED();
+  if (IsCopyNdPrimitiveSupported(in_parallel_desc.device_type(),
+                                 logical_blob_desc.shape().NumAxes())) {
+    std::string comment = BuildSubTaskGphSliceBoxing(
+        in_parallel_desc, out_parallel_desc, in_sbp_parallel, out_sbp_parallel, logical_blob_desc,
+        sorted_in_tasks, sorted_out_tasks);
+    return TRY(BuildSubTskGphBuilderStatus("SliceBoxingSubTskGphBuilder", comment));
   }
-  return TRY(BuildSubTskGphBuilderStatus("SliceBoxingSubTskGphBuilder", comment));
+
+  std::vector<TaskNode*> cpu_in_tasks;
+  std::vector<TaskNode*> cpu_out_tasks;
+  cpu_out_tasks.reserve(out_parallel_desc.parallel_num());
+
+  FOR_RANGE(int64_t, in_id, 0, in_parallel_desc.parallel_num()) {
+    TaskNode* in_node = sorted_in_tasks.at(in_id);
+    TaskNode* proxy_on_src_host = ctx->task_graph()->GetProxyNode(
+        in_node, lbi,
+        GetNodeCPUMemZoneId(dynamic_cast<TaskNode*>(in_node)->MemZoneId121().node_index()));
+    cpu_in_tasks.push_back(proxy_on_src_host);
+  }
+  ParallelConf cpu_in_parallel_conf = in_parallel_desc.parallel_conf();
+  cpu_in_parallel_conf.set_device_tag("cpu");
+  ParallelConf cpu_out_parallel_conf = out_parallel_desc.parallel_conf();
+  cpu_out_parallel_conf.set_device_tag("cpu");
+  std::string comment = BuildSubTaskGphSliceBoxing(
+      ParallelDesc(cpu_in_parallel_conf), ParallelDesc(cpu_out_parallel_conf), in_sbp_parallel,
+      out_sbp_parallel, logical_blob_desc, cpu_in_tasks, &cpu_out_tasks);
+  FOR_RANGE(int64_t, out_id, 0, out_parallel_desc.parallel_num()) {
+    TaskNode* out_node =
+        ctx->task_graph()->GetProxyNode(cpu_out_tasks.at(out_id), lbi, out_parallel_desc, out_id);
+    sorted_out_tasks->push_back(out_node);
+  }
+  return TRY(BuildSubTskGphBuilderStatus("SliceBoxingSubTskGphBuilder", "FallbackCPU" + comment));
 }
 
 }  // namespace oneflow
